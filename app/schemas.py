@@ -1,0 +1,30 @@
+from datetime import date
+from pydantic import BaseModel
+
+
+class SalesBase(BaseModel):
+    customer_name: str
+    product_name: str
+    quantity: int
+    price: float
+    sale_date: date
+
+
+class SalesCreate(SalesBase):
+    pass
+
+
+class SalesResponse(SalesBase):
+    id: int
+
+    class Config:
+        from_attributes = True
+
+
+class QuestionRequest(BaseModel):
+    question: str
+
+
+class AIResponse(BaseModel):
+    answer: str
+    data: list
