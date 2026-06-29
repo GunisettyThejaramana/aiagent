@@ -14,37 +14,45 @@ from app.ai import ask_llm
 router = APIRouter()
 
 
+# =========================================
+# Home
+# =========================================
 @router.get("/")
 def home():
-
     return {
         "message": "Enterprise AI Assistant Running"
     }
 
 
+# =========================================
+# Create Sales
+# =========================================
 @router.post("/sales")
 def create_sale(
     sale: schemas.SalesCreate,
     db: Session = Depends(get_db)
 ):
-
     return crud.create_sale(db, sale)
 
 
+# =========================================
+# Get Sales
+# =========================================
 @router.get("/sales")
 def get_sales(
     db: Session = Depends(get_db)
 ):
-
     return crud.get_sales(db)
 
 
+# =========================================
+# Ask AI
+# =========================================
 @router.post("/ask")
 def ask_ai(
     request: schemas.QuestionRequest,
     db: Session = Depends(get_db)
 ):
-
     sql = generate_sql(request.question)
 
     dataframe = pd.read_sql(
@@ -54,19 +62,15 @@ def ask_ai(
 
     answer = ask_llm(
         request.question,
-        dataframe
+        dataframe,
+        request.language   # <-- language added
     )
 
     return {
-
         "question": request.question,
-
         "sql": sql,
-
         "answer": answer,
-
         "rows": dataframe.to_dict(
             orient="records"
         )
-
     }

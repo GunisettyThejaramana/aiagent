@@ -1,300 +1,332 @@
-/* =====================================================
-   Enterprise AI Assistant
-   Professional Dashboard Theme
-===================================================== */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
 
 body {
-    background: #f4f7fb;
-    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-    color: #222;
+    font-family: "Segoe UI", sans-serif;
+    background: #f3f6fb;
+    color: #1f2937;
 }
 
-/* Navbar */
-
-.navbar {
-    background: linear-gradient(90deg, #0d6efd, #084298) !important;
+/* Dashboard Layout */
+.dashboard {
+    display: flex;
+    min-height: 100vh;
 }
 
-.navbar-brand {
-    font-size: 24px;
-    font-weight: bold;
-    letter-spacing: 1px;
+/* Sidebar */
+.sidebar {
+    width: 260px;
+    background: linear-gradient(180deg, #111827, #1f2937);
+    color: white;
+    padding: 30px 20px;
+    box-shadow: 5px 0 20px rgba(0,0,0,0.1);
 }
 
-/* Card */
-
-.card {
-    border: none;
-    border-radius: 15px;
+.sidebar h2 {
+    margin-bottom: 35px;
+    font-size: 28px;
 }
 
-.card-body {
+.sidebar ul {
+    list-style: none;
+    padding: 0;
+}
+
+.sidebar li {
+    padding: 14px 18px;
+    margin-bottom: 12px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.sidebar li:hover,
+.sidebar .active {
+    background: #2563eb;
+}
+
+/* Agent Avatar */
+.agent-box {
+    margin-top: 80px;
+}
+
+.agent-avatar {
+    width: 100px;
+    height: 100px;
+    margin: auto;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #9333ea, #2563eb);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 42px;
+    cursor: pointer;
+    box-shadow: 0 0 25px rgba(37,99,235,0.35);
+    transition: 0.3s ease;
+}
+
+.agent-avatar:hover {
+    transform: scale(1.08);
+}
+
+.agent-avatar.listening {
+    animation: pulse 1.2s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(147,51,234,0.5);
+    }
+    70% {
+        box-shadow: 0 0 0 30px rgba(147,51,234,0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(147,51,234,0);
+    }
+}
+
+/* Main */
+.main-content {
+    flex: 1;
     padding: 35px;
 }
 
-/* Heading */
-
-h3 {
-    font-weight: bold;
-    color: #0d6efd;
+/* Topbar */
+.topbar {
+    margin-bottom: 30px;
 }
 
-h4 {
-    margin-top: 25px;
-    margin-bottom: 15px;
-    color: #333;
+.topbar h1 {
+    font-size: 42px;
+    font-weight: 800;
 }
 
-/* Input */
-
-.form-control {
-    height: 52px;
-    border-radius: 10px;
+.topbar p {
+    color: #6b7280;
+    margin-top: 8px;
     font-size: 17px;
 }
 
-.form-control:focus {
-    border-color: #0d6efd;
-    box-shadow: 0 0 8px rgba(13,110,253,.25);
+/* Main Card */
+.main-card {
+    background: white;
+    padding: 35px;
+    border-radius: 24px;
+    box-shadow: 0 12px 30px rgba(0,0,0,.08);
 }
 
-/* Button */
-
-.btn-primary {
-    border-radius: 10px;
-    padding: 0 25px;
-    font-weight: bold;
+.main-card h3 {
+    margin-bottom: 20px;
 }
 
-.btn-primary:hover {
-    transform: translateY(-1px);
+/* Sample Buttons */
+.sample-buttons {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
 }
-
-/* Sample Question Buttons */
 
 .sample-question {
-    margin-bottom: 10px;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 30px;
+    background: #eff6ff;
+    color: #2563eb;
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.3s;
 }
 
-/* Loading */
-
-#loading {
-    padding: 20px;
+.sample-question:hover {
+    background: #2563eb;
+    color: white;
 }
 
-/* AI Answer */
+/* Search */
+.search-wrapper {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 25px;
+}
+
+.search-input {
+    flex: 1;
+    height: 58px;
+    border: 1px solid #d1d5db;
+    border-radius: 16px;
+    padding: 0 20px;
+    font-size: 16px;
+    outline: none;
+}
+
+.search-input:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 10px rgba(37,99,235,0.2);
+}
+
+.ask-btn {
+    width: 160px;
+    border: none;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    color: white;
+    font-weight: 700;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.ask-btn:hover {
+    transform: translateY(-2px);
+}
+
+/* Language Dropdown */
+.form-select {
+    max-width: 220px;
+    border-radius: 12px;
+}
+
+/* Sections */
+.dashboard-section {
+    margin-top: 35px;
+}
 
 .answer-box {
-
-    min-height: 120px;
-
-    background: white;
-
-    border-left: 5px solid #0d6efd;
-
-    padding: 20px;
-
-    border-radius: 10px;
-
-    line-height: 1.8;
-
+    min-height: 140px;
+    background: #f8fafc;
+    padding: 25px;
+    border-radius: 18px;
+    border-left: 5px solid #2563eb;
+    line-height: 1.7;
     white-space: pre-wrap;
-
-    font-size: 16px;
 }
 
-/* SQL Box */
-
+/* SQL */
 pre {
-
-    background: #1e1e1e;
-
-    color: #00ff99;
-
-    padding: 20px;
-
-    border-radius: 10px;
-
-    font-size: 14px;
-
+    background: #111827;
+    color: #10b981;
+    padding: 25px;
+    border-radius: 18px;
+    min-height: 120px;
     overflow-x: auto;
 }
 
 /* Table */
-
-.table {
-
-    margin-top: 15px;
+.table-wrapper {
+    overflow: auto;
+    max-height: 500px;
+    border-radius: 18px;
 }
 
-.table th {
-
-    text-align: center;
-
-    vertical-align: middle;
+.custom-table {
+    width: 100%;
+    border-collapse: collapse;
 }
 
-.table td {
-
-    vertical-align: middle;
+.custom-table th {
+    background: #2563eb;
+    color: white;
+    padding: 14px;
+    position: sticky;
+    top: 0;
 }
 
-/* Spinner */
+.custom-table td {
+    background: white;
+    padding: 14px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.custom-table tr:hover td {
+    background: #eff6ff;
+}
+
+/* Loading */
+#loading {
+    padding: 20px;
+}
 
 .spinner-border {
-
     width: 3rem;
-
     height: 3rem;
 }
 
-/* Footer (Optional) */
-
-.footer {
-
-    margin-top: 50px;
-
-    text-align: center;
-
-    color: gray;
-
-    font-size: 14px;
-}
-
-/* Smooth Transition */
-
-button,
-.card,
-.answer-box {
-
-    transition: all .3s ease;
-}
-
-/* Card Hover */
-
-.card:hover {
-
-    box-shadow: 0 12px 35px rgba(0,0,0,.12);
-}
-
-/* Table Hover */
-
-.table tbody tr:hover {
-
-    background: #eef5ff;
-}
-
-/* Mobile */
-
-@media(max-width:768px){
-
-    .card-body{
-
-        padding:20px;
-
-    }
-
-    .navbar-brand{
-
-        font-size:20px;
-
-    }
-
-    .form-control{
-
-        height:48px;
-
-    }
-
-}
-
-/* Success */
-
+/* Success / Error */
 .success {
-
-    color:#198754;
-
-    font-weight:bold;
+    color: #059669;
+    font-weight: 600;
 }
-
-/* Error */
 
 .error {
-
-    color:red;
-
-    font-weight:bold;
+    color: #dc2626;
+    font-weight: 600;
 }
 
-/* Question Buttons */
-
-.sample-question{
-
-    border-radius:25px;
-
-    padding:8px 18px;
-
-    font-size:14px;
+/* Animation */
+.fade-in {
+    animation: fadeIn .4s ease;
 }
 
-.sample-question:hover{
-
-    color:white;
-}
-
-/* Table Responsive */
-
-.table-responsive{
-
-    max-height:500px;
-
-    overflow:auto;
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 /* Scrollbar */
-
-::-webkit-scrollbar{
-
-    width:8px;
-
-    height:8px;
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
 }
 
-::-webkit-scrollbar-thumb{
-
-    background:#0d6efd;
-
-    border-radius:10px;
+::-webkit-scrollbar-thumb {
+    background: #2563eb;
+    border-radius: 10px;
 }
 
-::-webkit-scrollbar-track{
-
-    background:#f1f1f1;
+::-webkit-scrollbar-track {
+    background: #e5e7eb;
 }
 
-/* Fade Animation */
-
-.fade-in{
-
-    animation:fade .5s ease;
-}
-
-@keyframes fade{
-
-    from{
-
-        opacity:0;
-
-        transform:translateY(10px);
-
+/* Mobile */
+@media (max-width: 992px) {
+    .dashboard {
+        flex-direction: column;
     }
 
-    to{
-
-        opacity:1;
-
-        transform:translateY(0);
-
+    .sidebar {
+        width: 100%;
     }
 
+    .search-wrapper {
+        flex-direction: column;
+    }
+
+    .ask-btn {
+        width: 100%;
+        height: 56px;
+    }
+}
+
+@media (max-width: 600px) {
+    .main-content {
+        padding: 15px;
+    }
+
+    .topbar h1 {
+        font-size: 28px;
+    }
+
+    .agent-avatar {
+        width: 80px;
+        height: 80px;
+        font-size: 32px;
+    }
 }

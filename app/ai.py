@@ -1,16 +1,10 @@
-import json
 import pandas as pd
 
-from openai import OpenAI
 
-from app.config import settings
-
-
-client = OpenAI(api_key=settings.OPENAI_API_KEY)
-
-
+# =========================================
+# SQL Generator
+# =========================================
 def generate_sql(question: str):
-
     question = question.lower()
 
     if "today" in question:
@@ -21,7 +15,6 @@ def generate_sql(question: str):
         """
 
     elif "top customer" in question:
-
         return """
         SELECT customer_name,
                SUM(price * quantity) AS total
@@ -32,7 +25,6 @@ def generate_sql(question: str):
         """
 
     elif "top product" in question:
-
         return """
         SELECT product_name,
                SUM(quantity) AS quantity
@@ -43,15 +35,12 @@ def generate_sql(question: str):
         """
 
     elif "total sales" in question:
-
         return """
-        SELECT
-        SUM(price * quantity) AS total_sales
+        SELECT COALESCE(SUM(price * quantity), 0) AS total_sales
         FROM sales;
         """
 
     else:
-
         return """
         SELECT *
         FROM sales
@@ -59,52 +48,98 @@ def generate_sql(question: str):
         """
 
 
-def dataframe_to_text(df: pd.DataFrame):
+# =========================================
+# AI Answer Generator (FREE VERSION)
+# =========================================
+def ask_llm(question: str, dataframe: pd.DataFrame, language="en-US"):
+    question = question.lower()
 
-    if df.empty:
-        return "No data found."
+    if dataframe.empty:
+        if language == "ta-IN":
+            return "தரவுத்தளத்தில் தகவல் இல்லை."
+        elif language == "hi-IN":
+            return "डेटाबेस में कोई डेटा नहीं मिला।"
+        else:
+            return "No data found in database."
 
-    return df.to_string(index=False)
+    # -------------------------
+    # Total Sales
+    # -------------------------
+    if "total sales" in question:
+        total = dataframe.iloc[0, 0]
 
+        if total is None or pd.isna(total):
+            total = 0
 
-def ask_llm(question: str, dataframe: pd.DataFrame):
+        total = float(total)
 
-    data = dataframe_to_text(dataframe)
+        if language == "ta-IN":
+            return f"உங்கள் மொத்த விற்பனை ரூபாய் {total:,.2f}"
+        elif language == "hi-IN":
+            return f"आपकी कुल बिक्री ₹{total:,.2f} है"
+        else:
+            return f"Your total sales is ₹{total:,.2f}"
 
-    prompt = f"""
-You are a Business Analyst.
+    # -------------------------
+    # Top Customer
+    # -------------------------
+    elif "top customer" in question:
+        customer = dataframe.iloc[0]["customer_name"]
+        total = dataframe.iloc[0]["total"]
 
-Question:
+        if total is None or pd.isna(total):
+            total = 0
 
-{question}
+        total = float(total)
 
-Database Result:
+        if language == "ta-IN":
+            return f"உங்கள் முக்கிய வாடிக்கையாளர் {customer}. வாங்கியது ரூபாய் {total:,.2f}"
+        elif language == "hi-IN":
+            return f"आपके सबसे बड़े ग्राहक {customer} हैं। कुल खरीद ₹{total:,.2f}"
+        else:
+            return f"Your top customer is {customer} with purchase of ₹{total:,.2f}"
 
-{data}
+    # -------------------------
+    # Top Product
+    # -------------------------
+    elif "top product" in question:
+        product = dataframe.iloc[0]["product_name"]
+        qty = dataframe.iloc[0]["quantity"]
 
-Explain the answer in professional English.
-"""
+        if qty is None or pd.isna(qty):
+            qty = 0
 
-    response = client.chat.completions.create(
+        qty = int(qty)
 
-        model="gpt-4.1",
+        if language == "ta-IN":
+            return f"அதிகம் விற்கப்பட்ட பொருள் {product}. அளவு {qty}"
+        elif language == "hi-IN":
+            return f"सबसे ज्यादा बिकने वाला उत्पाद {product} है। मात्रा {qty}"
+        else:
+            return f"Your best selling product is {product} with quantity {qty}"
 
-        messages=[
+    # -------------------------
+    # Today's Sales
+    # -------------------------
+    elif "today" in question:
+        count = len(dataframe)
 
-            {
-                "role": "system",
-                "content": "You are a business analyst."
-            },
+        if language == "ta-IN":
+            return f"இன்று {count} விற்பனை பதிவுகள் உள்ளன"
+        elif language == "hi-IN":
+            return f"आज {count} बिक्री रिकॉर्ड मिले"
+        else:
+            return f"Today you have {count} sales records"
 
-            {
-                "role": "user",
-                "content": prompt
-            }
+    # -------------------------
+    # Default
+    # -------------------------
+    else:
+        rows = len(dataframe)
 
-        ],
-
-        temperature=0.2
-
-    )
-
-    return response.choices[0].message.content
+        if language == "ta-IN":
+            return f"{rows} பதிவுகள் கண்டுபிடிக்கப்பட்டன"
+        elif language == "hi-IN":
+            return f"{rows} रिकॉर्ड मिले"
+        else:
+            return f"I found {rows} records based on your query"

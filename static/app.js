@@ -1,276 +1,284 @@
-// =====================================================
-// Enterprise AI Assistant
-// app.js
-// Part 1
-// =====================================================
-
 document.addEventListener("DOMContentLoaded", () => {
-
     const questionInput = document.getElementById("question");
     const askBtn = document.getElementById("askBtn");
-
     const answerBox = document.getElementById("answer");
-    const sqlBox = document.getElementById("sqlBox");
+    const loading = document.getElementById("loading");
 
+    const sqlBox = document.getElementById("sqlBox");
     const tableHead = document.getElementById("tableHead");
     const tableBody = document.getElementById("tableBody");
 
-    const loading = document.getElementById("loading");
+    const voiceBtn = document.getElementById("voiceBtn");
+    const languageSelect = document.getElementById("languageSelect");
 
-    //--------------------------------------------------
+    let voices = [];
+
+    // =========================================
+    // Load Voices
+    // =========================================
+    function loadVoices() {
+        voices = window.speechSynthesis.getVoices();
+        console.log("Available Voices:", voices);
+    }
+
+    loadVoices();
+    speechSynthesis.onvoiceschanged = loadVoices;
+
+    // =========================================
     // Sample Questions
-    //--------------------------------------------------
-
+    // =========================================
     document.querySelectorAll(".sample-question").forEach(button => {
-
         button.addEventListener("click", () => {
-
             questionInput.value = button.innerText;
+        });
+    });
 
+    // =========================================
+    // Ask Button
+    // =========================================
+    if (askBtn) {
+        askBtn.addEventListener("click", askQuestion);
+    }
+
+    // =========================================
+    // Enter Key
+    // =========================================
+    if (questionInput) {
+        questionInput.addEventListener("keypress", e => {
+            if (e.key === "Enter") {
+                askQuestion();
+            }
+        });
+    }
+
+    // =========================================
+    // Voice Recognition
+    // =========================================
+    const SpeechRecognition =
+        window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (SpeechRecognition && voiceBtn) {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = false;
+
+        voiceBtn.addEventListener("click", () => {
+            recognition.lang = languageSelect?.value || "en-US";
+            voiceBtn.classList.add("listening");
+            recognition.start();
         });
 
-    });
-
-    //--------------------------------------------------
-    // Ask Button
-    //--------------------------------------------------
-
-    askBtn.addEventListener("click", () => {
-
-        askQuestion();
-
-    });
-
-    //--------------------------------------------------
-    // Press Enter
-    //--------------------------------------------------
-
-    questionInput.addEventListener("keypress", function (e) {
-
-        if (e.key === "Enter") {
-
+        recognition.onresult = function (event) {
+            const transcript = event.results[0][0].transcript;
+            questionInput.value = transcript;
             askQuestion();
+        };
 
-        }
+        recognition.onend = function () {
+            voiceBtn.classList.remove("listening");
+        };
 
-    });
+        recognition.onerror = function (e) {
+            console.error(e);
+            voiceBtn.classList.remove("listening");
+            alert("Voice recognition failed");
+        };
+    }
 
-    //--------------------------------------------------
-    // Main Function
-    //--------------------------------------------------
-
+    // =========================================
+    // Ask Question
+    // =========================================
     async function askQuestion() {
-
         const question = questionInput.value.trim();
 
-        if (question === "") {
-
-            alert("Please enter a question.");
-
+        if (!question) {
+            alert("Please enter a question");
             return;
-
         }
 
-        loading.classList.remove("d-none");
+        resetUI();
 
-        answerBox.innerHTML = "";
+        if (loading) loading.classList.remove("d-none");
 
-        sqlBox.innerHTML = "";
-
-        tableHead.innerHTML = "";
-
-        tableBody.innerHTML = "";
-
-        askBtn.disabled = true;
+        if (askBtn) {
+            askBtn.disabled = true;
+            askBtn.innerText = "Thinking...";
+        }
 
         try {
-
             const response = await fetch("/ask", {
-
                 method: "POST",
-
                 headers: {
-
                     "Content-Type": "application/json"
-
                 },
-
-                body: JSON.stringify({
-
-                    question: question
-
-                })
-
+                body: JSON.stringify({ question })
             });
 
             if (!response.ok) {
-
                 throw new Error("Server Error");
-
             }
 
             const data = await response.json();
 
-            displayAnswer(data);
+            const answer = data.answer || "No response";
 
-            displaySQL(data);
+            typeAnswer(answer);
+            speakAnswer(answer);
 
-            displayTable(data.rows);
+            displaySQL(data.sql || "");
+            displayTable(data.rows || []);
 
-        }
-
-        catch (error) {
-
+        } catch (error) {
             console.error(error);
 
-            answerBox.innerHTML =
+            if (answerBox) {
+                answerBox.innerHTML = `
+                    <div class="error">
+                        Failed to connect to server.
+                    </div>
+                `;
+            }
+        } finally {
+            if (loading) loading.classList.add("d-none");
 
-                `<div class="error">
+            if (askBtn) {
+                askBtn.disabled = false;
+                askBtn.innerText = "Ask AI";
+            }
+        }
+    }
 
-                    Failed to connect to server.
-
-                 </div>`;
-
+    // =========================================
+    // Speak Answer
+    // =========================================
+    function speakAnswer(text) {
+        if (!window.speechSynthesis) {
+            console.log("Speech not supported");
+            return;
         }
 
-        finally {
+        speechSynthesis.cancel();
 
-            loading.classList.add("d-none");
+        const utterance = new SpeechSynthesisUtterance(text);
+        const lang = languageSelect?.value || "en-US";
 
-            askBtn.disabled = false;
+        utterance.lang = lang;
+        utterance.rate = 0.95;
+        utterance.pitch = 1;
+        utterance.volume = 1;
 
+        let selectedVoice = null;
+
+        if (lang === "ta-IN") {
+            selectedVoice = voices.find(v =>
+                v.lang.includes("ta") || v.name.toLowerCase().includes("tamil")
+            );
+        } else if (lang === "hi-IN") {
+            selectedVoice = voices.find(v =>
+                v.lang.includes("hi") || v.name.toLowerCase().includes("hindi")
+            );
+        } else {
+            selectedVoice = voices.find(v =>
+                v.lang.includes("en")
+            );
         }
 
+        if (selectedVoice) {
+            utterance.voice = selectedVoice;
+            console.log("Using voice:", selectedVoice.name);
+        } else {
+            console.log("No matching voice found. Browser default used.");
+        }
+
+        setTimeout(() => {
+            speechSynthesis.speak(utterance);
+        }, 200);
     }
 
-    //--------------------------------------------------
-    // Display AI Answer
-    //--------------------------------------------------
+    // =========================================
+    // Reset UI
+    // =========================================
+    function resetUI() {
+        if (answerBox) {
+            answerBox.innerHTML = "Analyzing your business data...";
+        }
 
-    function displayAnswer(data) {
-
-        answerBox.classList.add("fade-in");
-
-        answerBox.innerHTML =
-
-            `<div class="success">
-
-                ${data.answer}
-
-            </div>`;
-
+        if (sqlBox) sqlBox.textContent = "";
+        if (tableHead) tableHead.innerHTML = "";
+        if (tableBody) tableBody.innerHTML = "";
     }
 
-    //--------------------------------------------------
-    // Display SQL
-    //--------------------------------------------------
+    // =========================================
+    // Typing Effect
+    // =========================================
+    function typeAnswer(text) {
+        if (!answerBox) return;
 
-    function displaySQL(data) {
+        answerBox.innerHTML = "";
+        let i = 0;
 
-        sqlBox.textContent = data.sql;
+        function type() {
+            if (i < text.length) {
+                answerBox.innerHTML += text.charAt(i);
+                i++;
+                setTimeout(type, 15);
+            }
+        }
 
+        type();
     }
 
-    //--------------------------------------------------
-    // Display Table
-    //--------------------------------------------------
+    // =========================================
+    // SQL Display
+    // =========================================
+    function displaySQL(sql) {
+        if (sqlBox) {
+            sqlBox.textContent = sql;
+        }
+    }
 
+    // =========================================
+    // Table Display
+    // =========================================
     function displayTable(rows) {
+        if (!tableHead || !tableBody) return;
+
+        tableHead.innerHTML = "";
+        tableBody.innerHTML = "";
 
         if (!rows || rows.length === 0) {
-
-            tableBody.innerHTML =
-
-                `<tr>
-
-                    <td colspan="20">
-
-                        No Records Found
-
-                    </td>
-
-                </tr>`;
-
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="20">No Records Found</td>
+                </tr>
+            `;
             return;
-
         }
-
-        //--------------------------------------------------
-        // Create Header
-        //--------------------------------------------------
 
         const headers = Object.keys(rows[0]);
 
         headers.forEach(header => {
-
             const th = document.createElement("th");
-
             th.innerText = header;
-
             tableHead.appendChild(th);
-
         });
 
-        //--------------------------------------------------
-        // Create Rows
-        //--------------------------------------------------
-
         rows.forEach(row => {
-
             const tr = document.createElement("tr");
 
-                        headers.forEach(header => {
-
+            headers.forEach(header => {
                 const td = document.createElement("td");
-
                 let value = row[header];
 
-                // Handle null/undefined values
                 if (value === null || value === undefined) {
                     value = "";
                 }
 
-                // Format numbers
-                if (typeof value === "number") {
-
-                    if (Number.isInteger(value)) {
-                        value = value.toLocaleString();
-                    } else {
-                        value = value.toLocaleString(undefined, {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2
-                        });
-                    }
-                }
-
-                // Format dates
-                if (
-                    typeof value === "string" &&
-                    /^\d{4}-\d{2}-\d{2}/.test(value)
-                ) {
-                    const date = new Date(value);
-
-                    if (!isNaN(date)) {
-                        value = date.toLocaleDateString();
-                    }
-                }
-
                 td.innerText = value;
-
                 tr.appendChild(td);
-
             });
 
             tableBody.appendChild(tr);
-
         });
-
-        // Scroll to answer
-        answerBox.scrollIntoView({
-            behavior: "smooth",
-            block: "start"
-        });
-
     }
-
 });
