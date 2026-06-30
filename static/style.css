@@ -10,13 +10,13 @@ body {
     color: #1f2937;
 }
 
-/* Dashboard Layout */
+
 .dashboard {
     display: flex;
     min-height: 100vh;
 }
 
-/* Sidebar */
+
 .sidebar {
     width: 260px;
     background: linear-gradient(180deg, #111827, #1f2937);
@@ -48,7 +48,7 @@ body {
     background: #2563eb;
 }
 
-/* Agent Avatar */
+
 .agent-box {
     margin-top: 80px;
 }
@@ -88,13 +88,13 @@ body {
     }
 }
 
-/* Main */
+
 .main-content {
     flex: 1;
     padding: 35px;
 }
 
-/* Topbar */
+
 .topbar {
     margin-bottom: 30px;
 }
@@ -110,7 +110,7 @@ body {
     font-size: 17px;
 }
 
-/* Main Card */
+
 .main-card {
     background: white;
     padding: 35px;
@@ -122,7 +122,7 @@ body {
     margin-bottom: 20px;
 }
 
-/* Sample Buttons */
+
 .sample-buttons {
     display: flex;
     gap: 12px;
@@ -145,7 +145,7 @@ body {
     color: white;
 }
 
-/* Search */
+
 .search-wrapper {
     display: flex;
     gap: 15px;
@@ -182,13 +182,13 @@ body {
     transform: translateY(-2px);
 }
 
-/* Language Dropdown */
+
 .form-select {
     max-width: 220px;
     border-radius: 12px;
 }
 
-/* Sections */
+
 .dashboard-section {
     margin-top: 35px;
 }
@@ -203,7 +203,7 @@ body {
     white-space: pre-wrap;
 }
 
-/* SQL */
+
 pre {
     background: #111827;
     color: #10b981;
@@ -213,7 +213,7 @@ pre {
     overflow-x: auto;
 }
 
-/* Table */
+
 .table-wrapper {
     overflow: auto;
     max-height: 500px;
@@ -243,7 +243,7 @@ pre {
     background: #eff6ff;
 }
 
-/* Loading */
+
 #loading {
     padding: 20px;
 }
@@ -253,7 +253,7 @@ pre {
     height: 3rem;
 }
 
-/* Success / Error */
+
 .success {
     color: #059669;
     font-weight: 600;
@@ -264,7 +264,7 @@ pre {
     font-weight: 600;
 }
 
-/* Animation */
+
 .fade-in {
     animation: fadeIn .4s ease;
 }
@@ -280,7 +280,7 @@ pre {
     }
 }
 
-/* Scrollbar */
+
 ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
@@ -295,7 +295,7 @@ pre {
     background: #e5e7eb;
 }
 
-/* Mobile */
+
 @media (max-width: 992px) {
     .dashboard {
         flex-direction: column;

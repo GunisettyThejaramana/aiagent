@@ -1,9 +1,7 @@
 import pandas as pd
 
 
-# =========================================
-# SQL Generator
-# =========================================
+
 def generate_sql(question: str):
     question = question.lower()
 
@@ -48,9 +46,7 @@ def generate_sql(question: str):
         """
 
 
-# =========================================
-# AI Answer Generator (FREE VERSION)
-# =========================================
+
 def ask_llm(question: str, dataframe: pd.DataFrame, language="en-US"):
     question = question.lower()
 
@@ -62,9 +58,7 @@ def ask_llm(question: str, dataframe: pd.DataFrame, language="en-US"):
         else:
             return "No data found in database."
 
-    # -------------------------
-    # Total Sales
-    # -------------------------
+    
     if "total sales" in question:
         total = dataframe.iloc[0, 0]
 
@@ -80,9 +74,7 @@ def ask_llm(question: str, dataframe: pd.DataFrame, language="en-US"):
         else:
             return f"Your total sales is ₹{total:,.2f}"
 
-    # -------------------------
-    # Top Customer
-    # -------------------------
+    
     elif "top customer" in question:
         customer = dataframe.iloc[0]["customer_name"]
         total = dataframe.iloc[0]["total"]
@@ -99,9 +91,7 @@ def ask_llm(question: str, dataframe: pd.DataFrame, language="en-US"):
         else:
             return f"Your top customer is {customer} with purchase of ₹{total:,.2f}"
 
-    # -------------------------
-    # Top Product
-    # -------------------------
+    
     elif "top product" in question:
         product = dataframe.iloc[0]["product_name"]
         qty = dataframe.iloc[0]["quantity"]
@@ -118,9 +108,6 @@ def ask_llm(question: str, dataframe: pd.DataFrame, language="en-US"):
         else:
             return f"Your best selling product is {product} with quantity {qty}"
 
-    # -------------------------
-    # Today's Sales
-    # -------------------------
     elif "today" in question:
         count = len(dataframe)
 
@@ -131,9 +118,7 @@ def ask_llm(question: str, dataframe: pd.DataFrame, language="en-US"):
         else:
             return f"Today you have {count} sales records"
 
-    # -------------------------
-    # Default
-    # -------------------------
+    
     else:
         rows = len(dataframe)
 

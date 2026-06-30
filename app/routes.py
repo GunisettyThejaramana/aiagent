@@ -14,9 +14,7 @@ from app.ai import ask_llm
 router = APIRouter()
 
 
-# =========================================
-# Home
-# =========================================
+
 @router.get("/")
 def home():
     return {
@@ -24,9 +22,7 @@ def home():
     }
 
 
-# =========================================
-# Create Sales
-# =========================================
+
 @router.post("/sales")
 def create_sale(
     sale: schemas.SalesCreate,
@@ -35,9 +31,7 @@ def create_sale(
     return crud.create_sale(db, sale)
 
 
-# =========================================
-# Get Sales
-# =========================================
+
 @router.get("/sales")
 def get_sales(
     db: Session = Depends(get_db)
@@ -45,9 +39,7 @@ def get_sales(
     return crud.get_sales(db)
 
 
-# =========================================
-# Ask AI
-# =========================================
+
 @router.post("/ask")
 def ask_ai(
     request: schemas.QuestionRequest,
@@ -63,7 +55,7 @@ def ask_ai(
     answer = ask_llm(
         request.question,
         dataframe,
-        request.language   # <-- language added
+        request.language   
     )
 
     return {

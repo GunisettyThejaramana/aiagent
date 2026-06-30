@@ -13,9 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     let voices = [];
 
-    // =========================================
-    // Load Voices
-    // =========================================
+    
     function loadVoices() {
         voices = window.speechSynthesis.getVoices();
         console.log("Available Voices:", voices);
@@ -24,25 +22,19 @@ document.addEventListener("DOMContentLoaded", () => {
     loadVoices();
     speechSynthesis.onvoiceschanged = loadVoices;
 
-    // =========================================
-    // Sample Questions
-    // =========================================
+    
     document.querySelectorAll(".sample-question").forEach(button => {
         button.addEventListener("click", () => {
             questionInput.value = button.innerText;
         });
     });
 
-    // =========================================
-    // Ask Button
-    // =========================================
+    
     if (askBtn) {
         askBtn.addEventListener("click", askQuestion);
     }
 
-    // =========================================
-    // Enter Key
-    // =========================================
+    
     if (questionInput) {
         questionInput.addEventListener("keypress", e => {
             if (e.key === "Enter") {
@@ -51,9 +43,7 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    // =========================================
-    // Voice Recognition
-    // =========================================
+    
     const SpeechRecognition =
         window.SpeechRecognition || window.webkitSpeechRecognition;
 
@@ -85,9 +75,7 @@ document.addEventListener("DOMContentLoaded", () => {
         };
     }
 
-    // =========================================
-    // Ask Question
-    // =========================================
+   
     async function askQuestion() {
         const question = questionInput.value.trim();
 
@@ -148,9 +136,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    // =========================================
-    // Speak Answer
-    // =========================================
+    
     function speakAnswer(text) {
         if (!window.speechSynthesis) {
             console.log("Speech not supported");
@@ -195,9 +181,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }, 200);
     }
 
-    // =========================================
-    // Reset UI
-    // =========================================
+    
     function resetUI() {
         if (answerBox) {
             answerBox.innerHTML = "Analyzing your business data...";
@@ -208,9 +192,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (tableBody) tableBody.innerHTML = "";
     }
 
-    // =========================================
-    // Typing Effect
-    // =========================================
+    
     function typeAnswer(text) {
         if (!answerBox) return;
 
@@ -228,18 +210,14 @@ document.addEventListener("DOMContentLoaded", () => {
         type();
     }
 
-    // =========================================
-    // SQL Display
-    // =========================================
+    
     function displaySQL(sql) {
         if (sqlBox) {
             sqlBox.textContent = sql;
         }
     }
 
-    // =========================================
-    // Table Display
-    // =========================================
+    
     function displayTable(rows) {
         if (!tableHead || !tableBody) return;
 
