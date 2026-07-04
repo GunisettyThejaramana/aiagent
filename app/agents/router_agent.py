@@ -23,6 +23,13 @@ def route_question(question):
         "product"
     ]
 
+    operations_keywords = [
+    "operation",
+    "task",
+    "project",
+    "production"
+]
+
     if any(k in q for k in hr_keywords):
         return "hr"
 
@@ -31,5 +38,9 @@ def route_question(question):
 
     if any(k in q for k in sales_keywords):
         return "sales"
+    
+
+    if any(k in q for k in operations_keywords):
+        return "operations"
 
     return "sales"

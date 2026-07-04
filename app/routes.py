@@ -13,6 +13,11 @@ from app import schemas
 
 from app.ai import ask_llm
 
+from app.memory import (
+    add_message,
+    get_memory
+)
+
 from app.agents.sales_agent import generate_sales_sql
 from app.agents.hr_agent import generate_hr_sql
 from app.agents.finance_agent import generate_finance_sql
@@ -22,7 +27,9 @@ from app.agents.router_agent import route_question
 router = APIRouter()
 
 
-
+# ==================================
+# HOME
+# ==================================
 
 @router.get("/")
 def home():
@@ -31,7 +38,9 @@ def home():
     }
 
 
-
+# ==================================
+# SALES APIs
+# ==================================
 
 @router.post("/sales")
 def create_sale(
@@ -48,7 +57,9 @@ def get_sales(
     return crud.get_sales(db)
 
 
-
+# ==================================
+# AI QUESTION ANSWERING
+# ==================================
 
 @router.post("/ask")
 def ask_ai(
@@ -56,7 +67,23 @@ def ask_ai(
     db: Session = Depends(get_db)
 ):
 
-    
+    # --------------------------
+    # MEMORY
+    # --------------------------
+
+    user_id = request.user_id
+
+    add_message(
+        user_id,
+        "user",
+        request.question
+    )
+
+    history = get_memory(user_id)
+
+    # --------------------------
+    # ROUTE QUESTION
+    # --------------------------
 
     source = route_question(
         request.question
@@ -64,7 +91,9 @@ def ask_ai(
 
     sql = None
 
-    
+    # --------------------------
+    # SALES
+    # --------------------------
 
     if source == "sales":
 
@@ -72,7 +101,9 @@ def ask_ai(
             request.question
         )
 
-    
+    # --------------------------
+    # HR
+    # --------------------------
 
     elif source == "hr":
 
@@ -80,7 +111,9 @@ def ask_ai(
             request.question
         )
 
-    
+    # --------------------------
+    # FINANCE
+    # --------------------------
 
     elif source == "finance":
 
@@ -95,7 +128,9 @@ def ask_ai(
             detail="Unable to determine data source"
         )
 
-    
+    # --------------------------
+    # SQL NOT GENERATED
+    # --------------------------
 
     if not sql:
 
@@ -107,7 +142,9 @@ def ask_ai(
             "rows": []
         }
 
-    
+    # --------------------------
+    # EXECUTE SQL
+    # --------------------------
 
     try:
 
@@ -116,17 +153,8 @@ def ask_ai(
             db.bind
         )
 
-        print("\nDATAFRAME RESULT:")
-        print(dataframe)
-
-        print("\nROWS RETURNED:")
-        print(len(dataframe))
-
-        print("=" * 60)
-
     except Exception as e:
 
-        
         return {
             "source": source,
             "question": request.question,
@@ -135,7 +163,9 @@ def ask_ai(
             "rows": []
         }
 
-    
+    # --------------------------
+    # GENERATE ANSWER
+    # --------------------------
 
     try:
 
@@ -149,7 +179,19 @@ def ask_ai(
 
         answer = f"LLM Error: {str(e)}"
 
-    
+    # --------------------------
+    # SAVE ASSISTANT RESPONSE
+    # --------------------------
+
+    add_message(
+        user_id,
+        "assistant",
+        answer
+    )
+
+    # --------------------------
+    # RESPONSE
+    # --------------------------
 
     return {
         "source": source,
@@ -158,5 +200,6 @@ def ask_ai(
         "answer": answer,
         "rows": dataframe.to_dict(
             orient="records"
-        )
+        ),
+        "memory_count": len(history)
     }

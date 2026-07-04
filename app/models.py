@@ -134,3 +134,19 @@ class Revenue(Base):
             f"<Revenue(id={self.id}, "
             f"amount={self.amount})>"
         )
+    
+
+
+
+class Operation(Base):
+    __tablename__ = "operations"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    task_name = Column(String(255))
+
+    department = Column(String(255))
+
+    status = Column(String(50))
+
+    completion_percent = Column(Integer)
