@@ -2,16 +2,25 @@ import pandas as pd
 
 from fastapi import APIRouter
 from fastapi import Depends
+from fastapi import HTTPException
+
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+
 from app import crud
 from app import schemas
-from app.ai import generate_sql
+
 from app.ai import ask_llm
+
+from app.agents.sales_agent import generate_sales_sql
+from app.agents.hr_agent import generate_hr_sql
+from app.agents.finance_agent import generate_finance_sql
+from app.agents.router_agent import route_question
 
 
 router = APIRouter()
+
 
 
 
@@ -23,13 +32,13 @@ def home():
 
 
 
+
 @router.post("/sales")
 def create_sale(
     sale: schemas.SalesCreate,
     db: Session = Depends(get_db)
 ):
     return crud.create_sale(db, sale)
-
 
 
 @router.get("/sales")
@@ -40,25 +49,110 @@ def get_sales(
 
 
 
+
 @router.post("/ask")
 def ask_ai(
     request: schemas.QuestionRequest,
     db: Session = Depends(get_db)
 ):
-    sql = generate_sql(request.question)
 
-    dataframe = pd.read_sql(
-        sql,
-        db.bind
+    
+
+    source = route_question(
+        request.question
     )
 
-    answer = ask_llm(
-        request.question,
-        dataframe,
-        request.language   
-    )
+    sql = None
+
+    
+
+    if source == "sales":
+
+        sql = generate_sales_sql(
+            request.question
+        )
+
+    
+
+    elif source == "hr":
+
+        sql = generate_hr_sql(
+            request.question
+        )
+
+    
+
+    elif source == "finance":
+
+        sql = generate_finance_sql(
+            request.question
+        )
+
+    else:
+
+        raise HTTPException(
+            status_code=400,
+            detail="Unable to determine data source"
+        )
+
+    
+
+    if not sql:
+
+        return {
+            "source": source,
+            "question": request.question,
+            "sql": None,
+            "answer": "No SQL generated for this question.",
+            "rows": []
+        }
+
+    
+
+    try:
+
+        dataframe = pd.read_sql(
+            sql,
+            db.bind
+        )
+
+        print("\nDATAFRAME RESULT:")
+        print(dataframe)
+
+        print("\nROWS RETURNED:")
+        print(len(dataframe))
+
+        print("=" * 60)
+
+    except Exception as e:
+
+        
+        return {
+            "source": source,
+            "question": request.question,
+            "sql": sql,
+            "answer": f"SQL Error: {str(e)}",
+            "rows": []
+        }
+
+    
+
+    try:
+
+        answer = ask_llm(
+            request.question,
+            dataframe,
+            request.language
+        )
+
+    except Exception as e:
+
+        answer = f"LLM Error: {str(e)}"
+
+    
 
     return {
+        "source": source,
         "question": request.question,
         "sql": sql,
         "answer": answer,
