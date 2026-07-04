@@ -16,6 +16,17 @@ def route_question(question):
         "budget",
         "finance"
     ]
+    inventory_keywords = [
+    "inventory",
+    "stock",
+    "warehouse"
+]
+
+    production_keywords = [
+    "production",
+    "machine",
+    "factory"
+]
 
     sales_keywords = [
         "sales",
@@ -42,5 +53,18 @@ def route_question(question):
 
     if any(k in q for k in operations_keywords):
         return "operations"
+    
+
+    if any(
+    k in q
+    for k in inventory_keywords
+):
+        return "inventory"
+
+    if any(
+    k in q
+    for k in production_keywords
+):
+        return "production"
 
     return "sales"

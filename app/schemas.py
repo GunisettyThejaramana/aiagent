@@ -2,9 +2,7 @@ from datetime import date
 from pydantic import BaseModel
 
 
-# ==================================
-# SALES SCHEMAS
-# ==================================
+
 
 class SalesBase(BaseModel):
     customer_name: str
@@ -25,9 +23,7 @@ class SalesResponse(SalesBase):
         from_attributes = True
 
 
-# ==================================
-# AI REQUEST SCHEMA
-# ==================================
+
 
 class QuestionRequest(BaseModel):
 
@@ -38,9 +34,7 @@ class QuestionRequest(BaseModel):
     language: str = "en-US"
 
 
-# ==================================
-# AI RESPONSE SCHEMA
-# ==================================
+
 
 class AIResponse(BaseModel):
 

@@ -9,9 +9,7 @@ def ask_llm(
 
     question = question.lower()
 
-    # -----------------------------
-    # NO DATA
-    # -----------------------------
+    
 
     if dataframe.empty:
 
@@ -23,9 +21,7 @@ def ask_llm(
 
         return "No data found in database."
 
-    # -----------------------------
-    # SALES
-    # -----------------------------
+    
 
     if "total sales" in question:
 
@@ -100,9 +96,7 @@ def ask_llm(
 
         return f"Today you have {count} sales records"
 
-    # -----------------------------
-    # HR
-    # -----------------------------
+    
 
     elif "employee" in question and "count" in question:
 
@@ -134,9 +128,7 @@ def ask_llm(
 
         return f"Found salary information for {count} employees"
 
-    # -----------------------------
-    # FINANCE
-    # -----------------------------
+    
 
     elif "expense" in question:
 
@@ -169,9 +161,7 @@ def ask_llm(
 
             return f"Profit is ₹{value:,.2f}"
 
-    # -----------------------------
-    # GENERIC RESPONSE
-    # -----------------------------
+    
 
     rows = len(dataframe)
 

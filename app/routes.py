@@ -27,9 +27,7 @@ from app.agents.router_agent import route_question
 router = APIRouter()
 
 
-# ==================================
-# HOME
-# ==================================
+
 
 @router.get("/")
 def home():
@@ -38,9 +36,7 @@ def home():
     }
 
 
-# ==================================
-# SALES APIs
-# ==================================
+
 
 @router.post("/sales")
 def create_sale(
@@ -57,9 +53,7 @@ def get_sales(
     return crud.get_sales(db)
 
 
-# ==================================
-# AI QUESTION ANSWERING
-# ==================================
+
 
 @router.post("/ask")
 def ask_ai(
@@ -67,9 +61,7 @@ def ask_ai(
     db: Session = Depends(get_db)
 ):
 
-    # --------------------------
-    # MEMORY
-    # --------------------------
+    
 
     user_id = request.user_id
 
@@ -81,9 +73,7 @@ def ask_ai(
 
     history = get_memory(user_id)
 
-    # --------------------------
-    # ROUTE QUESTION
-    # --------------------------
+    
 
     source = route_question(
         request.question
@@ -91,9 +81,7 @@ def ask_ai(
 
     sql = None
 
-    # --------------------------
-    # SALES
-    # --------------------------
+    
 
     if source == "sales":
 
@@ -101,9 +89,7 @@ def ask_ai(
             request.question
         )
 
-    # --------------------------
-    # HR
-    # --------------------------
+    
 
     elif source == "hr":
 
@@ -111,10 +97,7 @@ def ask_ai(
             request.question
         )
 
-    # --------------------------
-    # FINANCE
-    # --------------------------
-
+    
     elif source == "finance":
 
         sql = generate_finance_sql(
@@ -128,9 +111,7 @@ def ask_ai(
             detail="Unable to determine data source"
         )
 
-    # --------------------------
-    # SQL NOT GENERATED
-    # --------------------------
+    
 
     if not sql:
 
@@ -142,9 +123,7 @@ def ask_ai(
             "rows": []
         }
 
-    # --------------------------
-    # EXECUTE SQL
-    # --------------------------
+    
 
     try:
 
@@ -163,9 +142,7 @@ def ask_ai(
             "rows": []
         }
 
-    # --------------------------
-    # GENERATE ANSWER
-    # --------------------------
+    
 
     try:
 
@@ -179,19 +156,14 @@ def ask_ai(
 
         answer = f"LLM Error: {str(e)}"
 
-    # --------------------------
-    # SAVE ASSISTANT RESPONSE
-    # --------------------------
-
+    
     add_message(
         user_id,
         "assistant",
         answer
     )
 
-    # --------------------------
-    # RESPONSE
-    # --------------------------
+    
 
     return {
         "source": source,
