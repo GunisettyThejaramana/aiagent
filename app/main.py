@@ -9,6 +9,7 @@ from app.routes import router
 
 Base.metadata.create_all(bind=engine)
 
+
 app = FastAPI(
     title="Enterprise AI Assistant",
     version="1.0.0"
@@ -28,8 +29,9 @@ templates = Jinja2Templates(directory="templates")
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     return templates.TemplateResponse(
-        "index.html",
-        {
+        request=request,
+        name="index.html",
+        context={
             "request": request,
             "title": "Enterprise AI Assistant"
         }

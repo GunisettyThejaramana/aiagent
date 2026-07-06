@@ -61,7 +61,13 @@ def ask_ai(
     db: Session = Depends(get_db)
 ):
 
-    
+    print("\n" + "="*60)
+    print("🚀 NEW REQUEST")
+    print("="*60)
+
+    print(f"Question : {request.question}")
+    print(f"User ID  : {request.user_id}")
+    print(f"Language : {request.language}")
 
     user_id = request.user_id
 
@@ -73,47 +79,39 @@ def ask_ai(
 
     history = get_memory(user_id)
 
-    
+    print(f"\nConversation Memory ({len(history)} messages)")
+    for msg in history:
+        print(msg)
 
     source = route_question(
         request.question
     )
 
+    print(f"\nDetected Source : {source}")
+
     sql = None
 
-    
-
     if source == "sales":
-
-        sql = generate_sales_sql(
-            request.question
-        )
-
-    
+        sql = generate_sales_sql(request.question)
 
     elif source == "hr":
+        sql = generate_hr_sql(request.question)
 
-        sql = generate_hr_sql(
-            request.question
-        )
-
-    
     elif source == "finance":
-
-        sql = generate_finance_sql(
-            request.question
-        )
+        sql = generate_finance_sql(request.question)
 
     else:
-
         raise HTTPException(
             status_code=400,
             detail="Unable to determine data source"
         )
 
-    
+    print("\nGenerated SQL:")
+    print(sql)
 
     if not sql:
+
+        print("❌ No SQL Generated")
 
         return {
             "source": source,
@@ -123,8 +121,6 @@ def ask_ai(
             "rows": []
         }
 
-    
-
     try:
 
         dataframe = pd.read_sql(
@@ -132,7 +128,15 @@ def ask_ai(
             db.bind
         )
 
+        print("\nReturned Rows:")
+        print(dataframe)
+
+        print(f"\nNumber of rows: {len(dataframe)}")
+
     except Exception as e:
+
+        print("\nSQL ERROR")
+        print(e)
 
         return {
             "source": source,
@@ -142,8 +146,6 @@ def ask_ai(
             "rows": []
         }
 
-    
-
     try:
 
         answer = ask_llm(
@@ -152,18 +154,30 @@ def ask_ai(
             request.language
         )
 
+        print("\nLLM Answer:")
+        print(answer)
+
     except Exception as e:
 
         answer = f"LLM Error: {str(e)}"
 
-    
+        print(answer)
+
     add_message(
         user_id,
         "assistant",
         answer
     )
 
-    
+    print("\nFinal Response")
+    print({
+        "source": source,
+        "sql": sql,
+        "rows": len(dataframe),
+        "answer": answer
+    })
+
+    print("="*60)
 
     return {
         "source": source,
