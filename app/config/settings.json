@@ -1,0 +1,23 @@
+{
+    "application_name": "Enterprise AI Employee",
+
+    "knowledge_path": "",
+
+    "vector_database": "vector_db",
+
+    "supported_extensions": [
+        ".pdf",
+        ".docx",
+        ".xlsx",
+        ".xls",
+        ".csv",
+        ".pptx",
+        ".txt",
+        ".md",
+        ".zip"
+    ],
+
+    "auto_scan": true,
+
+    "scan_subfolders": true
+}
