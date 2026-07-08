@@ -8,7 +8,9 @@ def ask_llm(
 ):
     question = question.lower().strip()
 
-    
+    # -----------------------------
+    # No Data
+    # -----------------------------
     if dataframe.empty:
 
         if language == "ta-IN":
@@ -19,7 +21,31 @@ def ask_llm(
 
         return "No data found in database."
 
-   
+    # -----------------------------
+    # Local Document Support
+    # -----------------------------
+    if "Document Content" in dataframe.columns:
+
+        document_text = "\n".join(
+            dataframe["Document Content"].astype(str).tolist()
+        )
+
+        question_words = question.split()
+
+        if any(
+            word in document_text.lower()
+            for word in question_words
+        ):
+            return document_text[:3000]
+
+        return (
+            "I searched the local documents, "
+            "but couldn't find relevant information."
+        )
+
+    # -----------------------------
+    # Total Sales
+    # -----------------------------
     if (
         "total sales" in question
         or "sales amount" in question
@@ -41,7 +67,9 @@ def ask_llm(
 
         return f"Your total sales is ₹{total:,.2f}"
 
-    
+    # -----------------------------
+    # Total Revenue
+    # -----------------------------
     elif (
         "total revenue" in question
         or "overall revenue" in question
@@ -62,7 +90,9 @@ def ask_llm(
 
         return f"Your total revenue is ₹{revenue:,.2f}"
 
-    
+    # -----------------------------
+    # Top Customer
+    # -----------------------------
     elif (
         "top customer" in question
         or "top customers" in question
@@ -93,7 +123,9 @@ def ask_llm(
             f"{customer} with revenue of ₹{amount:,.2f}"
         )
 
-    
+    # -----------------------------
+    # Top Product
+    # -----------------------------
     elif (
         "top product" in question
         or "best selling product" in question
@@ -130,7 +162,9 @@ def ask_llm(
             f"{product} with quantity {qty}"
         )
 
-    
+    # -----------------------------
+    # Employee Count
+    # -----------------------------
     elif (
         "employee count" in question
         or "total employees" in question
@@ -138,11 +172,8 @@ def ask_llm(
     ):
 
         if "total_employees" in dataframe.columns:
-
             total = int(dataframe.iloc[0]["total_employees"])
-
         else:
-
             total = len(dataframe)
 
         if language == "ta-IN":
@@ -153,7 +184,9 @@ def ask_llm(
 
         return f"Total employees: {total}"
 
-    
+    # -----------------------------
+    # Salary
+    # -----------------------------
     elif "salary" in question:
 
         count = len(dataframe)
@@ -166,7 +199,9 @@ def ask_llm(
 
         return f"Found salary information for {count} employees."
 
-    
+    # -----------------------------
+    # Profit
+    # -----------------------------
     elif "profit" in question:
 
         value = dataframe.iloc[0, 0]
@@ -184,7 +219,9 @@ def ask_llm(
 
         return f"Profit is ₹{value:,.2f}"
 
-    
+    # -----------------------------
+    # Today's Sales
+    # -----------------------------
     elif "today" in question:
 
         count = len(dataframe)
@@ -197,22 +234,30 @@ def ask_llm(
 
         return f"Today you have {count} sales records."
 
-    
+    # -----------------------------
+    # Employee Records
+    # -----------------------------
     elif "employee" in question:
 
         return f"Found {len(dataframe)} employee records."
 
-    
+    # -----------------------------
+    # Sales Records
+    # -----------------------------
     elif "sales" in question:
 
         return f"Found {len(dataframe)} sales records."
 
-    
+    # -----------------------------
+    # Revenue Records
+    # -----------------------------
     elif "revenue" in question:
 
         return f"Found {len(dataframe)} revenue records."
 
-    
+    # -----------------------------
+    # Operation Records
+    # -----------------------------
     elif (
         "operation" in question
         or "task" in question
@@ -220,7 +265,9 @@ def ask_llm(
 
         return f"Found {len(dataframe)} operation records."
 
-    
+    # -----------------------------
+    # Default Response
+    # -----------------------------
     rows = len(dataframe)
 
     if language == "ta-IN":

@@ -23,10 +23,13 @@ from app.agents.hr_agent import generate_hr_sql
 from app.agents.finance_agent import generate_finance_sql
 from app.agents.router_agent import route_question
 
+# NEW
+from app.services.search_service import SearchService
+
 
 router = APIRouter()
 
-
+search_service = SearchService()
 
 
 @router.get("/")
@@ -34,8 +37,6 @@ def home():
     return {
         "message": "Enterprise AI Assistant Running"
     }
-
-
 
 
 @router.post("/sales")
@@ -53,17 +54,15 @@ def get_sales(
     return crud.get_sales(db)
 
 
-
-
 @router.post("/ask")
 def ask_ai(
     request: schemas.QuestionRequest,
     db: Session = Depends(get_db)
 ):
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("🚀 NEW REQUEST")
-    print("="*60)
+    print("=" * 60)
 
     print(f"Question : {request.question}")
     print(f"User ID  : {request.user_id}")
@@ -79,15 +78,7 @@ def ask_ai(
 
     history = get_memory(user_id)
 
-    print(f"\nConversation Memory ({len(history)} messages)")
-    for msg in history:
-        print(msg)
-
-    source = route_question(
-        request.question
-    )
-
-    print(f"\nDetected Source : {source}")
+    source = route_question(request.question)
 
     sql = None
 
@@ -106,18 +97,13 @@ def ask_ai(
             detail="Unable to determine data source"
         )
 
-    print("\nGenerated SQL:")
-    print(sql)
-
     if not sql:
-
-        print("❌ No SQL Generated")
 
         return {
             "source": source,
             "question": request.question,
             "sql": None,
-            "answer": "No SQL generated for this question.",
+            "answer": "No SQL generated.",
             "rows": []
         }
 
@@ -128,15 +114,7 @@ def ask_ai(
             db.bind
         )
 
-        print("\nReturned Rows:")
-        print(dataframe)
-
-        print(f"\nNumber of rows: {len(dataframe)}")
-
     except Exception as e:
-
-        print("\nSQL ERROR")
-        print(e)
 
         return {
             "source": source,
@@ -148,20 +126,64 @@ def ask_ai(
 
     try:
 
-        answer = ask_llm(
-            request.question,
-            dataframe,
-            request.language
-        )
+        # -----------------------------------------
+        # DATABASE DATA FOUND
+        # -----------------------------------------
+        if not dataframe.empty:
 
-        print("\nLLM Answer:")
-        print(answer)
+            answer = ask_llm(
+                request.question,
+                dataframe,
+                request.language
+            )
+
+            data_source = "database"
+
+        # -----------------------------------------
+        # DATABASE EMPTY → SEARCH LOCAL DOCUMENTS
+        # -----------------------------------------
+        else:
+
+            result = search_service.search_local_documents(
+    request.question
+)
+
+            documents = result["documents"]
+
+            if documents:
+
+                context = "\n\n".join(
+                    doc.page_content
+                    for doc in documents
+                )
+
+                document_df = pd.DataFrame(
+                    {
+                        "Document Content": [context]
+                    }
+                )
+
+                answer = ask_llm(
+                    request.question,
+                    document_df,
+                    request.language
+                )
+
+                data_source = "local_documents"
+
+            else:
+
+                answer = (
+                    "No information found in either "
+                    "the database or local documents."
+                )
+
+                data_source = "none"
 
     except Exception as e:
 
         answer = f"LLM Error: {str(e)}"
-
-        print(answer)
+        data_source = "error"
 
     add_message(
         user_id,
@@ -169,18 +191,9 @@ def ask_ai(
         answer
     )
 
-    print("\nFinal Response")
-    print({
-        "source": source,
-        "sql": sql,
-        "rows": len(dataframe),
-        "answer": answer
-    })
-
-    print("="*60)
-
     return {
         "source": source,
+        "data_source": data_source,
         "question": request.question,
         "sql": sql,
         "answer": answer,
