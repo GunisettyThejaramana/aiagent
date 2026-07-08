@@ -1,29 +1,20 @@
 import pandas as pd
 
-from fastapi import APIRouter
-from fastapi import Depends
-from fastapi import HTTPException
-
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-
-from app import crud
-from app import schemas
-
+from app import crud, schemas
 from app.ai import ask_llm
-
-from app.memory import (
-    add_message,
-    get_memory
-)
+from app.memory import add_message, get_memory
 
 from app.agents.sales_agent import generate_sales_sql
 from app.agents.hr_agent import generate_hr_sql
 from app.agents.finance_agent import generate_finance_sql
+
+
 from app.agents.router_agent import route_question
 
-# NEW
 from app.services.search_service import SearchService
 
 
@@ -80,6 +71,65 @@ def ask_ai(
 
     source = route_question(request.question)
 
+    print(f"Detected Source : {source}")
+
+    
+
+    if source == "documents":
+
+        result = search_service.search_local_documents(
+            request.question
+        )
+
+        documents = result["documents"]
+
+        if documents:
+
+            context = "\n\n".join(
+                doc.page_content
+                for doc in documents
+            )
+
+            document_df = pd.DataFrame(
+                {
+                    "Document Content": [context]
+                }
+            )
+
+            answer = ask_llm(
+                request.question,
+                document_df,
+                request.language
+            )
+
+            add_message(
+                user_id,
+                "assistant",
+                answer
+            )
+
+            return {
+                "source": "documents",
+                "data_source": "local_documents",
+                "question": request.question,
+                "sql": None,
+                "answer": answer,
+                "rows": [],
+                "memory_count": len(history)
+            }
+
+        return {
+            "source": "documents",
+            "data_source": "local_documents",
+            "question": request.question,
+            "sql": None,
+            "answer": "No matching local documents found.",
+            "rows": [],
+            "memory_count": len(history)
+        }
+
+    
+
     sql = None
 
     if source == "sales":
@@ -91,21 +141,71 @@ def ask_ai(
     elif source == "finance":
         sql = generate_finance_sql(request.question)
 
+    elif source == "operations":
+       
+        sql = None
+
+    elif source == "inventory":
+        
+        sql = None
+
+    elif source == "production":
+       
+        sql = None
+
     else:
-        raise HTTPException(
-            status_code=400,
-            detail="Unable to determine data source"
+        sql = None
+
+    
+
+    if sql is None:
+
+        result = search_service.search_local_documents(
+            request.question
         )
 
-    if not sql:
+        documents = result["documents"]
+
+        if documents:
+
+            context = "\n\n".join(
+                doc.page_content
+                for doc in documents
+            )
+
+            document_df = pd.DataFrame(
+                {
+                    "Document Content": [context]
+                }
+            )
+
+            answer = ask_llm(
+                request.question,
+                document_df,
+                request.language
+            )
+
+            return {
+                "source": source,
+                "data_source": "local_documents",
+                "question": request.question,
+                "sql": None,
+                "answer": answer,
+                "rows": [],
+                "memory_count": len(history)
+            }
 
         return {
             "source": source,
+            "data_source": "none",
             "question": request.question,
             "sql": None,
-            "answer": "No SQL generated.",
-            "rows": []
+            "answer": "No information found.",
+            "rows": [],
+            "memory_count": len(history)
         }
+
+    
 
     try:
 
@@ -124,66 +224,52 @@ def ask_ai(
             "rows": []
         }
 
-    try:
+    
 
-        # -----------------------------------------
-        # DATABASE DATA FOUND
-        # -----------------------------------------
-        if not dataframe.empty:
+    if dataframe.empty:
+
+        result = search_service.search_local_documents(
+            request.question
+        )
+
+        documents = result["documents"]
+
+        if documents:
+
+            context = "\n\n".join(
+                doc.page_content
+                for doc in documents
+            )
+
+            document_df = pd.DataFrame(
+                {
+                    "Document Content": [context]
+                }
+            )
 
             answer = ask_llm(
                 request.question,
-                dataframe,
+                document_df,
                 request.language
             )
 
-            data_source = "database"
+            return {
+                "source": source,
+                "data_source": "local_documents",
+                "question": request.question,
+                "sql": sql,
+                "answer": answer,
+                "rows": [],
+                "memory_count": len(history)
+            }
 
-        # -----------------------------------------
-        # DATABASE EMPTY → SEARCH LOCAL DOCUMENTS
-        # -----------------------------------------
-        else:
+    
 
-            result = search_service.search_local_documents(
-    request.question
-)
-
-            documents = result["documents"]
-
-            if documents:
-
-                context = "\n\n".join(
-                    doc.page_content
-                    for doc in documents
-                )
-
-                document_df = pd.DataFrame(
-                    {
-                        "Document Content": [context]
-                    }
-                )
-
-                answer = ask_llm(
-                    request.question,
-                    document_df,
-                    request.language
-                )
-
-                data_source = "local_documents"
-
-            else:
-
-                answer = (
-                    "No information found in either "
-                    "the database or local documents."
-                )
-
-                data_source = "none"
-
-    except Exception as e:
-
-        answer = f"LLM Error: {str(e)}"
-        data_source = "error"
+    answer = ask_llm(
+        request.question,
+        dataframe,
+        request.language
+    )
 
     add_message(
         user_id,
@@ -193,7 +279,7 @@ def ask_ai(
 
     return {
         "source": source,
-        "data_source": data_source,
+        "data_source": "database",
         "question": request.question,
         "sql": sql,
         "answer": answer,

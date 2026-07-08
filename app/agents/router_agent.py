@@ -1,70 +1,82 @@
-def route_question(question):
+def route_question(question: str):
 
-    q = question.lower()
+    q = question.lower().strip()
 
     hr_keywords = [
         "employee",
         "employees",
         "salary",
         "leave",
-        "department"
+        "department",
+        "hr",
+        "manager",
+        "designation"
     ]
 
     finance_keywords = [
         "revenue",
         "expense",
         "budget",
-        "finance"
+        "finance",
+        "profit",
+        "loss",
+        "income"
     ]
-    inventory_keywords = [
-    "inventory",
-    "stock",
-    "warehouse"
-]
-
-    production_keywords = [
-    "production",
-    "machine",
-    "factory"
-]
 
     sales_keywords = [
         "sales",
         "customer",
-        "product"
+        "customers",
+        "product",
+        "products",
+        "order",
+        "orders"
     ]
 
     operations_keywords = [
-    "operation",
-    "task",
-    "project",
-    "production"
-]
+        "operation",
+        "operations",
+        "task",
+        "tasks",
+        "project",
+        "projects"
+    ]
 
-    if any(k in q for k in hr_keywords):
+    inventory_keywords = [
+        "inventory",
+        "stock",
+        "warehouse"
+    ]
+
+    production_keywords = [
+        "production",
+        "machine",
+        "factory"
+    ]
+
+    
+    if any(keyword in q for keyword in hr_keywords):
         return "hr"
 
-    if any(k in q for k in finance_keywords):
+    
+    if any(keyword in q for keyword in finance_keywords):
         return "finance"
 
-    if any(k in q for k in sales_keywords):
+    
+    if any(keyword in q for keyword in sales_keywords):
         return "sales"
-    
 
-    if any(k in q for k in operations_keywords):
+    
+    if any(keyword in q for keyword in operations_keywords):
         return "operations"
-    
 
-    if any(
-    k in q
-    for k in inventory_keywords
-):
+   
+    if any(keyword in q for keyword in inventory_keywords):
         return "inventory"
 
-    if any(
-    k in q
-    for k in production_keywords
-):
+    
+    if any(keyword in q for keyword in production_keywords):
         return "production"
 
-    return "sales"
+    
+    return "documents"

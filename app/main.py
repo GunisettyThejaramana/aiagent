@@ -8,15 +8,11 @@ from app.routes import router
 from app.indexing.document_index import DocumentIndex
 
 
-# ----------------------------------------------------
-# Create Database Tables
-# ----------------------------------------------------
+
 Base.metadata.create_all(bind=engine)
 
 
-# ----------------------------------------------------
-# Build Local Document Index
-# ----------------------------------------------------
+
 document_index = DocumentIndex()
 
 try:
@@ -34,18 +30,14 @@ except Exception as e:
     print("=" * 60)
 
 
-# ----------------------------------------------------
-# FastAPI App
-# ----------------------------------------------------
+
 app = FastAPI(
     title="Enterprise AI Assistant",
     version="1.0.0"
 )
 
 
-# ----------------------------------------------------
-# Static Files
-# ----------------------------------------------------
+
 app.mount(
     "/static",
     StaticFiles(directory="static"),
@@ -53,17 +45,13 @@ app.mount(
 )
 
 
-# ----------------------------------------------------
-# Templates
-# ----------------------------------------------------
+
 templates = Jinja2Templates(
     directory="templates"
 )
 
 
-# ----------------------------------------------------
-# Home Page
-# ----------------------------------------------------
+
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
 
@@ -77,7 +65,5 @@ async def home(request: Request):
     )
 
 
-# ----------------------------------------------------
-# API Routes
-# ----------------------------------------------------
+
 app.include_router(router)
