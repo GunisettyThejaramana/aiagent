@@ -8,23 +8,16 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     PROJECT_NAME: str = "Enterprise AI Assistant"
 
-    # ==========================
-    # Database Configuration
-    # ==========================
+    
     DB_USER: str
     DB_PASSWORD: str
     DB_HOST: str
     DB_PORT: int
     DB_NAME: str
 
-    # ==========================
-    # OpenAI Configuration
-    # ==========================
+    
     OPENAI_API_KEY: str
 
-    # ==========================
-    # Supported File Types
-    # ==========================
     SUPPORTED_FILE_TYPES: str = (
         ".pdf,"
         ".docx,"
@@ -38,9 +31,7 @@ class Settings(BaseSettings):
         ".md"
     )
 
-    # ==========================
-    # Local Drive Scan Paths
-    # ==========================
+    
     LOCAL_SCAN_PATHS: str = (
         f"{Path.home() / 'Documents'};"
         f"{Path.home() / 'Desktop'};"
