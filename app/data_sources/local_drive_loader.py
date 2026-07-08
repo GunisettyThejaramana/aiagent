@@ -6,47 +6,91 @@ from app.config import settings
 
 class LocalDriveLoader:
     """
-    Scans the current user's Documents folder
-    and returns all supported files.
+    Scans one or more local folders and returns all supported files.
+
+    The folders to scan are configured in settings.local_scan_paths.
     """
 
     def __init__(self):
-        self.documents_path = Path.home() / "Documents"
-        self.supported_extensions = settings.supported_extensions
+        self.supported_extensions = {
+            ext.lower() for ext in settings.supported_extensions
+        }
+
+        # Read scan paths from config
+        self.scan_paths = [
+            Path(path).expanduser()
+            for path in settings.local_scan_paths
+        ]
 
     def scan(self) -> List[Path]:
         """
-        Recursively scan the Documents folder.
+        Recursively scan all configured folders.
 
         Returns:
-            List[Path]
+            List[Path]: List of supported files.
         """
 
         files = []
+        visited = set()
 
-        if not self.documents_path.exists():
-            return files
+        # Folders that should never be scanned
+        excluded_dirs = {
+            "Windows",
+            "Program Files",
+            "Program Files (x86)",
+            "AppData",
+            "$Recycle.Bin",
+            "System Volume Information",
+            "node_modules",
+            ".git",
+            ".venv",
+            "venv",
+            "__pycache__",
+        }
 
-        for file in self.documents_path.rglob("*"):
+        for root in self.scan_paths:
 
-            if (
-                file.is_file()
-                and file.suffix.lower() in self.supported_extensions
-            ):
-                files.append(file)
+            if not root.exists():
+                continue
 
-        return files
+            try:
+                for file in root.rglob("*"):
+
+                    # Skip excluded folders
+                    if any(part in excluded_dirs for part in file.parts):
+                        continue
+
+                    if (
+                        file.is_file()
+                        and file.suffix.lower() in self.supported_extensions
+                    ):
+
+                        # Avoid duplicates
+                        resolved = file.resolve()
+
+                        if resolved not in visited:
+                            visited.add(resolved)
+                            files.append(file)
+
+            except PermissionError:
+                # Skip folders that Windows does not allow us to read
+                continue
+
+            except Exception:
+                continue
+
+        return sorted(files)
 
     def exists(self) -> bool:
         """
-        Check whether the Documents folder exists.
+        Returns True if at least one configured folder exists.
         """
 
-        return self.documents_path.exists()
+        return any(path.exists() for path in self.scan_paths)
 
-    def get_documents_path(self) -> Path:
+    def get_scan_paths(self) -> List[Path]:
         """
-        Return the current user's Documents folder.
+        Return the configured scan folders.
         """
 
-        return self.documents_path
+        return self.scan_paths

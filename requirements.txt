@@ -14,7 +14,7 @@ python-dotenv==1.0.1
 
 
 
-
+beautifulsoup4
 
 
 langchain
@@ -24,7 +24,7 @@ langchain-core
 pandas
 
 openpyxl
-
+python-pptx
 pypdf
 
 docx2txt

@@ -1,4 +1,5 @@
 from functools import lru_cache
+from pathlib import Path
 from urllib.parse import quote_plus
 
 from pydantic_settings import BaseSettings
@@ -7,18 +8,44 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     PROJECT_NAME: str = "Enterprise AI Assistant"
 
-    # Database
+    # ==========================
+    # Database Configuration
+    # ==========================
     DB_USER: str
     DB_PASSWORD: str
     DB_HOST: str
     DB_PORT: int
     DB_NAME: str
 
-    # OpenAI
+    # ==========================
+    # OpenAI Configuration
+    # ==========================
     OPENAI_API_KEY: str
 
+    # ==========================
     # Supported File Types
-    SUPPORTED_FILE_TYPES: str = ".pdf,.docx,.xlsx,.csv,.txt"
+    # ==========================
+    SUPPORTED_FILE_TYPES: str = (
+        ".pdf,"
+        ".docx,"
+        ".xlsx,"
+        ".csv,"
+        ".txt,"
+        ".json,"
+        ".xml,"
+        ".pptx,"
+        ".html,"
+        ".md"
+    )
+
+    # ==========================
+    # Local Drive Scan Paths
+    # ==========================
+    LOCAL_SCAN_PATHS: str = (
+        f"{Path.home() / 'Documents'};"
+        f"{Path.home() / 'Desktop'};"
+        f"{Path.home() / 'Downloads'}"
+    )
 
     @property
     def DATABASE_URL(self):
@@ -33,6 +60,15 @@ class Settings(BaseSettings):
         return [
             ext.strip().lower()
             for ext in self.SUPPORTED_FILE_TYPES.split(",")
+            if ext.strip()
+        ]
+
+    @property
+    def local_scan_paths(self):
+        return [
+            path.strip()
+            for path in self.LOCAL_SCAN_PATHS.split(";")
+            if path.strip()
         ]
 
     class Config:
