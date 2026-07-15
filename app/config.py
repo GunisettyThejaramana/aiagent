@@ -42,9 +42,10 @@ class Settings(BaseSettings):
     def DATABASE_URL(self):
         password = quote_plus(self.DB_PASSWORD)
         return (
-            f"postgresql://{self.DB_USER}:{password}"
-            f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
-        )
+        f"postgresql://{self.DB_USER}:{password}"
+        f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+        f"?sslmode=require"
+    )
 
     @property
     def supported_extensions(self):
