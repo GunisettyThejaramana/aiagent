@@ -12,9 +12,7 @@ def insert_sample_data():
     db = SessionLocal()
 
     try:
-        # -------------------------
-        # SALES
-        # -------------------------
+        
         if db.query(Sales).count() == 0:
 
             sales = [
@@ -57,9 +55,7 @@ def insert_sample_data():
 
             db.add_all(sales)
 
-        # -------------------------
-        # EMPLOYEES
-        # -------------------------
+        
         if db.query(Employee).count() == 0:
 
             employees = [
@@ -107,9 +103,7 @@ def insert_sample_data():
 
             db.add_all(employees)
 
-        # -------------------------
-        # REVENUE
-        # -------------------------
+        
         if db.query(Revenue).count() == 0:
 
             revenue = [
@@ -147,9 +141,7 @@ def insert_sample_data():
 
             db.add_all(revenue)
 
-        # -------------------------
-        # OPERATIONS
-        # -------------------------
+        
         if db.query(Operation).count() == 0:
 
             operations = [
