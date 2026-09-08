@@ -1,3 +1,4 @@
+
 import pandas as pd
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -12,7 +13,6 @@ from app.agents.sales_agent import generate_sales_sql
 from app.agents.hr_agent import generate_hr_sql
 from app.agents.finance_agent import generate_finance_sql
 
-
 from app.agents.router_agent import route_question
 
 from app.services.search_service import SearchService
@@ -21,13 +21,21 @@ from app.database_manager import (
     create_database_engine_from_saved_connection
 )
 
-from app.agents.dynamic_sql_agent import (
-    generate_dynamic_sql
+from app.custom_ai.custom_ai_engine import (
+    CustomAIEngine
 )
+
+
 router = APIRouter()
 
 search_service = SearchService()
 
+custom_ai_engine = CustomAIEngine()
+
+
+# ================================================================
+# HOME
+# ================================================================
 
 @router.get("/")
 def home():
@@ -35,6 +43,10 @@ def home():
         "message": "Enterprise AI Assistant Running"
     }
 
+
+# ================================================================
+# SALES
+# ================================================================
 
 @router.post("/sales")
 def create_sale(
@@ -50,6 +62,10 @@ def get_sales(
 ):
     return crud.get_sales(db)
 
+
+# ================================================================
+# ASK AI
+# ================================================================
 
 @router.post("/ask")
 def ask_ai(
@@ -68,6 +84,10 @@ def ask_ai(
 
     user_id = request.user_id
 
+    # ------------------------------------------------------------
+    # MEMORY
+    # ------------------------------------------------------------
+
     add_message(
         user_id,
         "user",
@@ -76,10 +96,13 @@ def ask_ai(
 
     history = get_memory(user_id)
 
-    # --------------------------------------------------
+    # ============================================================
     # CASE 1:
-    # User selected a database.
-    # --------------------------------------------------
+    # DATABASE SELECTED
+    #
+    # Database questions use the Custom AI Engine.
+    # No OpenAI / LLM is used in this path.
+    # ============================================================
 
     if request.database_id is not None:
 
@@ -102,40 +125,126 @@ def ask_ai(
                 "Selected database connection successful."
             )
 
-            # ------------------------------------------
-            # Generate SQL using actual database schema
-            # ------------------------------------------
+            # ----------------------------------------------------
+            # CUSTOM AI PROCESSING
+            # ----------------------------------------------------
 
-            sql = generate_dynamic_sql(
-                request.question,
-                selected_engine
+            print(
+                "Starting Custom AI Engine..."
             )
 
-            print("Generated SQL:")
-            print(sql)
-
-            # ------------------------------------------
-            # Execute SQL
-            # ------------------------------------------
-
-            dataframe = pd.read_sql(
-                sql,
-                selected_engine
+            # IMPORTANT:
+            # Pass database_id so the database knowledge cache
+            # uses "database 2" instead of "engine:<id>".
+            ai_result = custom_ai_engine.process(
+                request.question,
+                selected_engine,
+                database_id=request.database_id
             )
 
             print(
-                f"Rows returned: {len(dataframe)}"
+                "Custom AI processing completed."
             )
 
-            # ------------------------------------------
-            # Generate natural-language answer
-            # ------------------------------------------
-
-            answer = ask_llm(
-                request.question,
-                dataframe,
-                request.language
+            print(
+                "Generated SQL:"
             )
+
+            print(
+                ai_result.get("sql")
+            )
+
+            # ----------------------------------------------------
+            # CHECK CUSTOM AI EXECUTION RESULT
+            # ----------------------------------------------------
+
+            execution = ai_result.get(
+                "execution",
+                {}
+            )
+
+            if not isinstance(
+                execution,
+                dict
+            ):
+                execution = {}
+
+            if not execution.get(
+                "success",
+                False
+            ):
+
+                reason = execution.get(
+                    "reason"
+                )
+
+                if not reason:
+
+                    query_result = ai_result.get(
+                        "query",
+                        {}
+                    )
+
+                    if isinstance(
+                        query_result,
+                        dict
+                    ):
+                        reason = query_result.get(
+                            "reason"
+                        )
+
+                if not reason:
+
+                    reason = (
+                        "The Custom AI could not "
+                        "answer the question."
+                    )
+
+                raise HTTPException(
+                    status_code=400,
+                    detail=reason
+                )
+
+            # ----------------------------------------------------
+            # GET EXECUTION RESULT
+            # ----------------------------------------------------
+
+            rows = execution.get(
+                "rows",
+                []
+            )
+
+            columns = execution.get(
+                "columns",
+                []
+            )
+
+            sql = ai_result.get(
+                "sql"
+            )
+
+            answer = ai_result.get(
+                "answer"
+            )
+
+            if not answer:
+
+                answer = (
+                    "The Custom AI could not "
+                    "generate an answer."
+                )
+
+            print(
+                f"Rows returned: {len(rows)}"
+            )
+
+            print(
+                f"Answer: {answer}"
+            )
+
+            # ----------------------------------------------------
+            # SAVE ASSISTANT RESPONSE TO MEMORY
+            # ----------------------------------------------------
 
             add_message(
                 user_id,
@@ -143,18 +252,64 @@ def ask_ai(
                 answer
             )
 
+            # ----------------------------------------------------
+            # RETURN DATABASE RESPONSE
+            # ----------------------------------------------------
+
             return {
                 "source": "database",
-                "data_source": "selected_database",
-                "database_id": request.database_id,
-                "question": request.question,
-                "sql": sql,
-                "answer": answer,
-                "rows": dataframe.to_dict(
-                    orient="records"
+
+                "data_source": (
+                    "selected_database"
                 ),
-                "memory_count": len(history)
+
+                "database_id": (
+                    request.database_id
+                ),
+
+                "question": (
+                    request.question
+                ),
+
+                "sql": sql,
+
+                "answer": answer,
+
+                "rows": rows,
+
+                "columns": columns,
+
+                "memory_count": (
+                    len(history)
+                ),
+
+                # Custom AI information
+                "ai_engine": "custom_ai",
+
+                "intent": ai_result.get(
+                    "intent"
+                ),
+
+                "entities": ai_result.get(
+                    "entities"
+                ),
+
+                "metric": ai_result.get(
+                    "metric"
+                ),
+
+                "query_plan": ai_result.get(
+                    "query_plan"
+                ),
+
+                "processing_time": ai_result.get(
+                    "processing_time"
+                )
             }
+
+        except HTTPException:
+
+            raise
 
         except ValueError as exc:
 
@@ -169,27 +324,40 @@ def ask_ai(
 
         except Exception as exc:
 
+            import traceback
+
             print(
-                f"Database query error: {exc}"
+                f"Custom AI database error: {exc}"
             )
+
+            traceback.print_exc()
 
             raise HTTPException(
                 status_code=400,
-                detail=f"Database query failed: {str(exc)}"
+                detail=str(exc)
             )
 
         finally:
 
-            if selected_engine is not None:
+            # IMPORTANT:
+            #
+            # Do NOT call:
+            #
+            # selected_engine.dispose()
+            #
+            # The database manager now keeps engines in an
+            # in-memory connection cache. Disposing the engine
+            # here would destroy the connection pool and cause
+            # a new connection to be created repeatedly.
+            #
+            pass
 
-                selected_engine.dispose()
-
-    # --------------------------------------------------
+    # ============================================================
     # CASE 2:
-    # No database selected.
+    # NO DATABASE SELECTED
     #
-    # Keep your existing application behavior.
-    # --------------------------------------------------
+    # Keep existing application behavior.
+    # ============================================================
 
     source = route_question(
         request.question
@@ -199,10 +367,16 @@ def ask_ai(
         f"Detected Source : {source}"
     )
 
+    # ============================================================
+    # DOCUMENT SEARCH
+    # ============================================================
+
     if source == "documents":
 
-        result = search_service.search_local_documents(
-            request.question
+        result = (
+            search_service.search_local_documents(
+                request.question
+            )
         )
 
         documents = result["documents"]
@@ -216,7 +390,9 @@ def ask_ai(
 
             document_df = pd.DataFrame(
                 {
-                    "Document Content": [context]
+                    "Document Content": [
+                        context
+                    ]
                 }
             )
 
@@ -234,23 +410,54 @@ def ask_ai(
 
             return {
                 "source": "documents",
-                "data_source": "local_documents",
-                "question": request.question,
+
+                "data_source": (
+                    "local_documents"
+                ),
+
+                "question": (
+                    request.question
+                ),
+
                 "sql": None,
+
                 "answer": answer,
+
                 "rows": [],
-                "memory_count": len(history)
+
+                "memory_count": (
+                    len(history)
+                )
             }
 
         return {
             "source": "documents",
-            "data_source": "local_documents",
-            "question": request.question,
+
+            "data_source": (
+                "local_documents"
+            ),
+
+            "question": (
+                request.question
+            ),
+
             "sql": None,
-            "answer": "No matching local documents found.",
+
+            "answer": (
+                "No matching local "
+                "documents found."
+            ),
+
             "rows": [],
-            "memory_count": len(history)
+
+            "memory_count": (
+                len(history)
+            )
         }
+
+    # ============================================================
+    # EXISTING ROUTING
+    # ============================================================
 
     sql = None
 
@@ -284,10 +491,16 @@ def ask_ai(
 
         sql = None
 
+    # ============================================================
+    # FALLBACK TO DOCUMENT SEARCH
+    # ============================================================
+
     if sql is None:
 
-        result = search_service.search_local_documents(
-            request.question
+        result = (
+            search_service.search_local_documents(
+                request.question
+            )
         )
 
         documents = result["documents"]
@@ -301,7 +514,9 @@ def ask_ai(
 
             document_df = pd.DataFrame(
                 {
-                    "Document Content": [context]
+                    "Document Content": [
+                        context
+                    ]
                 }
             )
 
@@ -313,23 +528,51 @@ def ask_ai(
 
             return {
                 "source": source,
-                "data_source": "local_documents",
-                "question": request.question,
+
+                "data_source": (
+                    "local_documents"
+                ),
+
+                "question": (
+                    request.question
+                ),
+
                 "sql": None,
+
                 "answer": answer,
+
                 "rows": [],
-                "memory_count": len(history)
+
+                "memory_count": (
+                    len(history)
+                )
             }
 
         return {
             "source": source,
+
             "data_source": "none",
-            "question": request.question,
+
+            "question": (
+                request.question
+            ),
+
             "sql": None,
-            "answer": "No information found.",
+
+            "answer": (
+                "No information found."
+            ),
+
             "rows": [],
-            "memory_count": len(history)
+
+            "memory_count": (
+                len(history)
+            )
         }
+
+    # ============================================================
+    # EXISTING DATABASE QUERY
+    # ============================================================
 
     try:
 
@@ -342,16 +585,30 @@ def ask_ai(
 
         return {
             "source": source,
-            "question": request.question,
+
+            "question": (
+                request.question
+            ),
+
             "sql": sql,
-            "answer": f"SQL Error: {str(e)}",
+
+            "answer": (
+                f"SQL Error: {str(e)}"
+            ),
+
             "rows": []
         }
 
+    # ============================================================
+    # EMPTY DATABASE RESULT
+    # ============================================================
+
     if dataframe.empty:
 
-        result = search_service.search_local_documents(
-            request.question
+        result = (
+            search_service.search_local_documents(
+                request.question
+            )
         )
 
         documents = result["documents"]
@@ -365,7 +622,9 @@ def ask_ai(
 
             document_df = pd.DataFrame(
                 {
-                    "Document Content": [context]
+                    "Document Content": [
+                        context
+                    ]
                 }
             )
 
@@ -376,14 +635,30 @@ def ask_ai(
             )
 
             return {
-                "source": source,
-                "data_source": "local_documents",
-                "question": request.question,
+                "source": "documents",
+
+                "data_source": (
+                    "local_documents"
+                ),
+
+                "question": (
+                    request.question
+                ),
+
                 "sql": sql,
+
                 "answer": answer,
+
                 "rows": [],
-                "memory_count": len(history)
+
+                "memory_count": (
+                    len(history)
+                )
             }
+
+    # ============================================================
+    # EXISTING LLM RESPONSE
+    # ============================================================
 
     answer = ask_llm(
         request.question,
@@ -398,13 +673,24 @@ def ask_ai(
     )
 
     return {
-        "source": source,
+        "source": "database",
+
         "data_source": "database",
-        "question": request.question,
+
+        "question": (
+            request.question
+        ),
+
         "sql": sql,
+
         "answer": answer,
+
         "rows": dataframe.to_dict(
             orient="records"
         ),
-        "memory_count": len(history)
+
+        "memory_count": (
+            len(history)
+        )
     }
+
