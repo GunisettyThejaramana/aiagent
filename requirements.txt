@@ -12,19 +12,22 @@ python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 python-dotenv==1.0.1
 
-
-
 beautifulsoup4
-
-
 langchain
 langchain-community
 langchain-core
 
-pandas
-
 openpyxl
 python-pptx
 pypdf
-
 docx2txt
+
+sentence-transformers
+faiss-cpu
+rarfile
+py7zr
+
+
+cryptography
+pymysql
+pyodbc

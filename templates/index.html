@@ -3,112 +3,1293 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <title>Enterprise AI Assistant</title>
 
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=7">
+    <!-- Bootstrap -->
+    <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+        rel="stylesheet"
+    >
+
+    <!-- Bootstrap Icons -->
+    <link
+        rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
+    >
+
+    <!-- Application CSS -->
+    <link rel="stylesheet" href="/static/style.css?v=10">
 </head>
+
 <body>
 
-<div class="dashboard">
+<div class="app-shell">
 
     
     <aside class="sidebar">
-        <h2>🤖 AI Agent</h2>
 
-        <ul>
-            <li class="active">Dashboard</li>
-        </ul>
+        <div class="brand">
 
-        
-        <div class="agent-box text-center mt-5">
-            <div class="agent-avatar" id="voiceBtn">
-                🎙️
+            <div class="brand-icon">
+                <i class="bi bi-brain"></i>
             </div>
 
-            <p class="mt-3 text-light">
-                Click mic and ask question
-            </p>
-        </div>
-    </aside>
+            <div>
+                <h2>Enterprise AI</h2>
+                <span>Your Data. Your Insights.</span>
+            </div>
 
-    
-    <main class="main-content">
-
-        <div class="topbar">
-            <h1>Enterprise AI Assistant</h1>
-            <p>Ask questions in natural language and get business insights instantly.</p>
         </div>
 
-        
-        <div class="main-card">
 
-            <h3 class="mb-3">Ask Your Business Data</h3>
+        <nav class="sidebar-nav">
 
-            
-            <div class="sample-buttons mb-4">
-                <button class="sample-question">Show today's sales</button>
-                <button class="sample-question">Top customers</button>
-                <button class="sample-question">Top products</button>
-                <button class="sample-question">Total sales</button>
-            </div>
+            <a href="#" class="nav-item active" data-section="home">
+                <i class="bi bi-house-door-fill"></i>
+                <span>Home</span>
+            </a>
 
-            
-            <div class="search-wrapper">
-                <input
-                    id="question"
-                    type="text"
-                    class="search-input"
-                    autocomplete="off"
-                    placeholder="Ask anything about your sales database..."
-                >
+            <a href="#" class="nav-item" data-section="databases">
+                <i class="bi bi-database"></i>
+                <span>Database Connections</span>
+            </a>
 
-                <button id="askBtn" class="ask-btn">
-                    Ask AI
-                </button>
-            </div>
+            <a href="#" class="nav-item" data-section="ask">
+                <i class="bi bi-chat-dots"></i>
+                <span>Ask AI</span>
+            </a>
 
-            
-            <div class="mb-3">
-                <label for="languageSelect" class="form-label fw-bold">
-                    AI Voice Language
-                </label>
+            <a href="#" class="nav-item">
+                <i class="bi bi-bookmark"></i>
+                <span>Saved Queries</span>
+            </a>
 
-                <select id="languageSelect" class="form-select">
-                    <option value="en-US">English</option>
-                    <option value="hi-IN">Hindi</option>
-                    <option value="ta-IN">Tamil</option>
-                </select>
-            </div>
+            <a href="#" class="nav-item">
+                <i class="bi bi-gear"></i>
+                <span>Settings</span>
+            </a>
 
-            
-            <div class="text-center my-4 d-none" id="loading">
-                <div class="spinner-border text-primary"></div>
-                <p class="mt-3">Analyzing your data...</p>
-            </div>
+        </nav>
 
-            
-            <div class="dashboard-section">
-                <h3>🧠 AI Answer</h3>
-                <div id="answer" class="answer-box">
-                    Waiting for your question...
+
+        <!-- AI Voice Assistant -->
+
+        <div class="voice-assistant">
+
+            <div class="voice-header">
+                <div class="voice-wave">
+                    <i class="bi bi-soundwave"></i>
+                </div>
+
+                <div>
+                    <strong>AI Assistant</strong>
+                    <small>Always here to help</small>
                 </div>
             </div>
 
-            
-            <div class="dashboard-section">
-                <h3>💻 SQL Generated</h3>
-                <pre id="sqlBox">Waiting...</pre>
+            <button
+                type="button"
+                class="voice-circle"
+                id="voiceBtn"
+                title="Speak your question"
+            >
+                <i class="bi bi-mic-fill"></i>
+            </button>
+
+            <p id="voiceStatus">Click to speak</p>
+
+        </div>
+
+
+        <!-- User -->
+
+        <div class="sidebar-user">
+
+            <div class="user-avatar">
+                A
             </div>
 
-           
+            <div class="user-details">
+                <strong>Admin</strong>
+                <span>admin@company.com</span>
+            </div>
+
+            <i class="bi bi-chevron-right"></i>
+
+        </div>
+
+    </aside>
+
+
     
+    <main class="main-area">
+
+        <!-- TOPBAR -->
+
+        <header class="topbar">
+
+            <div class="global-search">
+
+                <i class="bi bi-search"></i>
+
+                <input
+                    type="text"
+                    placeholder="Search database, ask questions..."
+                    id="globalSearch"
+                >
+
+                
+
+            </div>
+
+
+            <div class="topbar-actions">
+
+                <button class="icon-button">
+                    <i class="bi bi-bell"></i>
+                    <span class="notification-dot"></span>
+                </button>
+
+                <div class="admin-profile">
+
+                    <div class="admin-avatar">
+                        A
+                    </div>
+
+                    <strong>Admin</strong>
+
+                    <i class="bi bi-chevron-down"></i>
+
+                </div>
+
+            </div>
+
+        </header>
+
+
+        <!-- CONTENT -->
+
+        <div class="content-area">
+
+            
+            <section class="welcome-card">
+
+                <div class="welcome-content">
+
+                    <div class="welcome-title">
+                        <span>👋</span>
+                        <h1>Welcome to Enterprise AI</h1>
+                    </div>
+
+                    <p>
+                        Connect your databases, ask questions in natural
+                        language, and get instant insights from your business data.
+                    </p>
+
+                </div>
+
+
+                <div class="database-illustration">
+
+                    <div class="db-icon floating-icon postgres">
+                        <i class="bi bi-database-fill"></i>
+                    </div>
+
+                    <div class="db-icon floating-icon mysql">
+                        <i class="bi bi-database-fill"></i>
+                    </div>
+
+                    <div class="db-cylinder">
+                        <i class="bi bi-database-fill"></i>
+                    </div>
+
+                    <div class="plus-icon plus-one">+</div>
+                    <div class="plus-icon plus-two">+</div>
+
+                </div>
+
+            </section>
+
+
+            <!-- =================================================
+                 TWO COLUMN DASHBOARD
+            ================================================== -->
+
+            <div class="dashboard-grid">
+
+
+                <!-- LEFT COLUMN -->
+
+                <div class="left-column">
+
+
+                    <!-- DATABASES -->
+
+                    <section class="dashboard-card" id="databaseSection">
+
+                        <div class="card-header">
+
+                            <div class="card-title">
+
+                                <div class="title-icon">
+                                    <i class="bi bi-database-fill"></i>
+                                </div>
+
+                                <h2>Your Databases</h2>
+
+                            </div>
+
+
+                            <button
+    type="button"
+    class="primary-button"
+    id="addDatabaseBtn"
+    data-bs-toggle="modal"
+    data-bs-target="#databaseModal"
+>
+    <i class="bi bi-plus-lg"></i>
+    Add Database
+</button>
+
+                        </div>
+
+
+                        <div class="database-list" id="databaseList">
+
+                            <!-- Database 1 -->
+
+                            <div
+                                class="database-item selected"
+                                data-db-id="sales"
+                                data-db-name="Sales Database"
+                                data-db-type="PostgreSQL"
+                                data-db-host="db.company.com"
+                                data-db-port="5432"
+                                data-db-database="sales_db"
+                                data-db-username="admin"
+                            >
+
+                                <div class="database-logo postgres-logo">
+                                    <i class="bi bi-database-fill"></i>
+                                </div>
+
+                                <div class="database-info">
+
+                                    <strong>Sales Database</strong>
+
+                                    <span>PostgreSQL</span>
+
+                                </div>
+
+                                <div class="database-status connected">
+                                    <span></span>
+                                    Connected
+                                </div>
+
+                                <button class="more-button">
+                                    <i class="bi bi-three-dots"></i>
+                                </button>
+
+                            </div>
+
+
+                            <!-- Database 2 -->
+
+                            <div
+                                class="database-item"
+                                data-db-id="hr"
+                                data-db-name="HR Database"
+                                data-db-type="MySQL"
+                                data-db-host="hr.company.com"
+                                data-db-port="3306"
+                                data-db-database="hr_db"
+                                data-db-username="admin"
+                            >
+
+                                <div class="database-logo mysql-logo">
+                                    <i class="bi bi-database-fill"></i>
+                                </div>
+
+                                <div class="database-info">
+
+                                    <strong>HR Database</strong>
+
+                                    <span>MySQL</span>
+
+                                </div>
+
+                                <div class="database-status connected">
+                                    <span></span>
+                                    Connected
+                                </div>
+
+                                <button class="more-button">
+                                    <i class="bi bi-three-dots"></i>
+                                </button>
+
+                            </div>
+
+
+                            <!-- Database 3 -->
+
+                            <div
+                                class="database-item"
+                                data-db-id="finance"
+                                data-db-name="Finance DB"
+                                data-db-type="SQL Server"
+                                data-db-host="finance.company.com"
+                                data-db-port="1433"
+                                data-db-database="finance_db"
+                                data-db-username="admin"
+                            >
+
+                                <div class="database-logo sqlserver-logo">
+                                    <i class="bi bi-database-fill"></i>
+                                </div>
+
+                                <div class="database-info">
+
+                                    <strong>Finance DB</strong>
+
+                                    <span>SQL Server</span>
+
+                                </div>
+
+                                <div class="database-status connected">
+                                    <span></span>
+                                    Connected
+                                </div>
+
+                                <button class="more-button">
+                                    <i class="bi bi-three-dots"></i>
+                                </button>
+
+                            </div>
+
+
+                            <!-- Database 4 -->
+
+                            <div
+                                class="database-item"
+                                data-db-id="marketing"
+                                data-db-name="Marketing DB"
+                                data-db-type="Oracle"
+                                data-db-host="oracle.company.com"
+                                data-db-port="1521"
+                                data-db-database="marketing_db"
+                                data-db-username="admin"
+                            >
+
+                                <div class="database-logo oracle-logo">
+                                    <i class="bi bi-database-fill"></i>
+                                </div>
+
+                                <div class="database-info">
+
+                                    <strong>Marketing DB</strong>
+
+                                    <span>Oracle</span>
+
+                                </div>
+
+                                <div class="database-status disconnected">
+                                    <span></span>
+                                    Disconnected
+                                </div>
+
+                                <button class="more-button">
+                                    <i class="bi bi-three-dots"></i>
+                                </button>
+
+                            </div>
+
+
+                            <!-- Database 5 -->
+
+                            <div
+                                class="database-item"
+                                data-db-id="customer"
+                                data-db-name="Customer DB"
+                                data-db-type="PostgreSQL"
+                                data-db-host="customer.company.com"
+                                data-db-port="5432"
+                                data-db-database="customer_db"
+                                data-db-username="admin"
+                            >
+
+                                <div class="database-logo postgres-logo">
+                                    <i class="bi bi-database-fill"></i>
+                                </div>
+
+                                <div class="database-info">
+
+                                    <strong>Customer DB</strong>
+
+                                    <span>PostgreSQL</span>
+
+                                </div>
+
+                                <div class="database-status connected">
+                                    <span></span>
+                                    Connected
+                                </div>
+
+                                <button class="more-button">
+                                    <i class="bi bi-three-dots"></i>
+                                </button>
+
+                            </div>
+
+                        </div>
+
+                    </section>
+
+
+                    <!-- ASK AI -->
+
+                    <section class="dashboard-card ask-card" id="askSection">
+
+                        <div class="card-header">
+
+                            <div class="card-title">
+
+                                <div class="title-icon chat-icon">
+                                    <i class="bi bi-chat-dots-fill"></i>
+                                </div>
+
+                                <h2>Ask Your Question</h2>
+
+                            </div>
+
+
+                            <div class="language-control">
+
+                                <i class="bi bi-globe2"></i>
+
+                                <select id="languageSelect">
+
+                                    <option value="en-US">
+                                        English
+                                    </option>
+
+                                    <option value="hi-IN">
+                                        Hindi
+                                    </option>
+
+                                    <option value="ta-IN">
+                                        Tamil
+                                    </option>
+
+                                </select>
+
+                                <i class="bi bi-chevron-down"></i>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- Selected Database -->
+
+                        <div class="selected-database-mini">
+
+                            <i class="bi bi-database-fill"></i>
+
+                            <span>
+                                Asking about:
+                            </span>
+
+                            <strong id="selectedDatabaseName">
+                                Sales Database
+                            </strong>
+
+                            <span class="mini-status">
+                                <i class="bi bi-circle-fill"></i>
+                                Connected
+                            </span>
+
+                        </div>
+
+
+                        <!-- Sample Questions -->
+
+                        <div class="sample-buttons">
+
+                            <button class="sample-question">
+                                Show today's sales
+                            </button>
+
+                            <button class="sample-question">
+                                Top customers
+                            </button>
+
+                            <button class="sample-question">
+                                Top products
+                            </button>
+
+                            <button class="sample-question">
+                                Total sales
+                            </button>
+
+                        </div>
+
+
+                        <!-- Question Input -->
+
+                        <div class="question-box">
+
+                            <textarea
+                                id="question"
+                                rows="2"
+                                autocomplete="off"
+                                placeholder="Ask anything about your selected database..."
+                            ></textarea>
+
+
+                            <div class="question-actions">
+
+                                <button
+                                    type="button"
+                                    class="input-icon-button"
+                                    title="Attach"
+                                >
+                                    <i class="bi bi-paperclip"></i>
+                                </button>
+
+
+                                <button
+                                    type="button"
+                                    class="input-icon-button"
+                                    id="inlineVoiceBtn"
+                                    title="Voice input"
+                                >
+                                    <i class="bi bi-mic"></i>
+                                </button>
+
+
+                                <button
+                                    type="button"
+                                    class="send-button"
+                                    id="askBtn"
+                                    title="Ask AI"
+                                >
+                                    <i class="bi bi-send-fill"></i>
+                                </button>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- Loading -->
+
+                        <div
+                            id="loading"
+                            class="loading-area d-none"
+                        >
+
+                            <div class="spinner-border"></div>
+
+                            <span>
+                                Analyzing your data...
+                            </span>
+
+                        </div>
+
+
+                        <!-- AI Answer -->
+
+                        <div class="answer-container">
+
+                            <div class="answer-header">
+
+                                <div class="answer-ai-icon">
+                                    <i class="bi bi-robot"></i>
+                                </div>
+
+                                <div>
+
+                                    <strong>AI Assistant</strong>
+
+                                    <span>Ready when you are!</span>
+
+                                </div>
+
+                            </div>
+
+
+                            <div
+                                id="answer"
+                                class="answer-box"
+                            >
+                                Select a database and ask a question
+                                to get insights from your data.
+                            </div>
+
+                        </div>
+
+
+                        <!-- SQL -->
+
+                        <div
+                            id="sqlSection"
+                            class="result-section d-none"
+                        >
+
+                            <div class="result-title">
+                                <i class="bi bi-code-slash"></i>
+                                Generated SQL
+                            </div>
+
+                            <pre id="sqlBox"></pre>
+
+                        </div>
+
+
+                        <!-- Results Table -->
+
+                        <div
+                            id="tableSection"
+                            class="result-section d-none"
+                        >
+
+                            <div class="result-title">
+                                <i class="bi bi-table"></i>
+                                Query Results
+                            </div>
+
+                            <div class="table-wrapper">
+
+                                <table class="custom-table">
+
+                                    <thead>
+                                        <tr id="tableHead"></tr>
+                                    </thead>
+
+                                    <tbody id="tableBody"></tbody>
+
+                                </table>
+
+                            </div>
+
+                        </div>
+
+                    </section>
+
+                </div>
+
+
+                <!-- =================================================
+                     RIGHT COLUMN
+                ================================================== -->
+
+                <div class="right-column">
+
+
+                    <!-- SELECTED DATABASE -->
+
+                    <section class="dashboard-card selected-card">
+
+                        <div class="selected-card-header">
+
+                            <div>
+                                <i class="bi bi-globe2"></i>
+                                Selected Database
+                            </div>
+
+                            <span class="online-indicator"></span>
+
+                        </div>
+
+
+                        <div class="selected-db-main">
+
+                            <div class="large-db-logo postgres-logo">
+                                <i class="bi bi-database-fill"></i>
+                            </div>
+
+                            <div>
+
+                                <h3 id="detailDatabaseName">
+                                    Sales Database
+                                </h3>
+
+                                <p id="detailDatabaseType">
+                                    PostgreSQL
+                                </p>
+
+                                <div class="connection-badge">
+                                    <span></span>
+                                    Connected
+                                </div>
+
+                            </div>
+
+                            <i class="bi bi-chevron-right detail-arrow"></i>
+
+                        </div>
+
+
+                        <div class="database-information">
+
+                            <h4>Database Information</h4>
+
+                            <div class="info-row">
+                                <span>Host</span>
+                                <strong id="detailHost">
+                                    db.company.com
+                                </strong>
+                            </div>
+
+                            <div class="info-row">
+                                <span>Port</span>
+                                <strong id="detailPort">
+                                    5432
+                                </strong>
+                            </div>
+
+                            <div class="info-row">
+                                <span>Database</span>
+                                <strong id="detailDatabase">
+                                    sales_db
+                                </strong>
+                            </div>
+
+                            <div class="info-row">
+                                <span>Username</span>
+                                <strong id="detailUsername">
+                                    admin
+                                </strong>
+                            </div>
+
+
+                            <button
+                                class="schema-link"
+                                id="viewSchemaBtn"
+                            >
+                                View Schema
+                            </button>
+
+                        </div>
+
+                    </section>
+
+
+                    <!-- QUICK ACTIONS -->
+
+                    <section class="dashboard-card">
+
+                        <div class="card-header compact">
+
+                            <div class="card-title">
+
+                                <h2>Quick Actions</h2>
+
+                            </div>
+
+                        </div>
+
+
+                        <div class="quick-actions">
+
+                            <button
+                                class="quick-action"
+                                id="quickNewConnection"
+                            >
+
+                                <div class="quick-icon">
+                                    <i class="bi bi-plus-lg"></i>
+                                </div>
+
+                                <div>
+                                    <strong>New Connection</strong>
+                                    <span>Add a new database</span>
+                                </div>
+
+                            </button>
+
+
+                            <button class="quick-action">
+
+                                <div class="quick-icon">
+                                    <i class="bi bi-database"></i>
+                                </div>
+
+                                <div>
+                                    <strong>Manage Databases</strong>
+                                    <span>View & edit connections</span>
+                                </div>
+
+                            </button>
+
+
+                            <button
+                                class="quick-action"
+                                id="quickSchema"
+                            >
+
+                                <div class="quick-icon">
+                                    <i class="bi bi-table"></i>
+                                </div>
+
+                                <div>
+                                    <strong>View Schema</strong>
+                                    <span>Explore database tables</span>
+                                </div>
+
+                            </button>
+
+
+                            <button class="quick-action">
+
+                                <div class="quick-icon">
+                                    <i class="bi bi-bookmark"></i>
+                                </div>
+
+                                <div>
+                                    <strong>Saved Queries</strong>
+                                    <span>Your past questions</span>
+                                </div>
+
+                            </button>
+
+                        </div>
+
+                    </section>
+
+
+                    <!-- RECENT QUERIES -->
+
+                    <section class="dashboard-card recent-card">
+
+                        <div class="card-header compact">
+
+                            <div class="card-title">
+
+                                <div class="title-icon small">
+                                    <i class="bi bi-clock-history"></i>
+                                </div>
+
+                                <h2>Recent Queries</h2>
+
+                            </div>
+
+                            <button class="view-all">
+                                View All
+                            </button>
+
+                        </div>
+
+
+                        <div class="recent-list" id="recentQueries">
+
+                            <div class="recent-item">
+
+                                <div class="recent-db-icon postgres-logo">
+                                    <i class="bi bi-database-fill"></i>
+                                </div>
+
+                                <div class="recent-content">
+
+                                    <strong>
+                                        What were our sales last month?
+                                    </strong>
+
+                                    <span>
+                                        <i class="bi bi-database-fill"></i>
+                                        Sales Database
+                                    </span>
+
+                                </div>
+
+                                <time>10:24 AM</time>
+
+                            </div>
+
+
+                            <div class="recent-item">
+
+                                <div class="recent-db-icon postgres-logo">
+                                    <i class="bi bi-database-fill"></i>
+                                </div>
+
+                                <div class="recent-content">
+
+                                    <strong>
+                                        Top 5 customers by revenue
+                                    </strong>
+
+                                    <span>
+                                        <i class="bi bi-database-fill"></i>
+                                        Sales Database
+                                    </span>
+
+                                </div>
+
+                                <time>09:50 AM</time>
+
+                            </div>
+
+
+                            <div class="recent-item">
+
+                                <div class="recent-db-icon mysql-logo">
+                                    <i class="bi bi-database-fill"></i>
+                                </div>
+
+                                <div class="recent-content">
+
+                                    <strong>
+                                        Total employees in HR
+                                    </strong>
+
+                                    <span>
+                                        <i class="bi bi-database-fill"></i>
+                                        HR Database
+                                    </span>
+
+                                </div>
+
+                                <time>Yesterday</time>
+
+                            </div>
+
+
+                            <div class="recent-item">
+
+                                <div class="recent-db-icon sqlserver-logo">
+                                    <i class="bi bi-database-fill"></i>
+                                </div>
+
+                                <div class="recent-content">
+
+                                    <strong>
+                                        Monthly revenue comparison
+                                    </strong>
+
+                                    <span>
+                                        <i class="bi bi-database-fill"></i>
+                                        Finance DB
+                                    </span>
+
+                                </div>
+
+                                <time>Yesterday</time>
+
+                            </div>
+
+                        </div>
+
+                    </section>
+
+                </div>
+
+            </div>
 
         </div>
 
     </main>
+
 </div>
 
-<script src="/static/app.js?v=7"></script>
+
+<!-- =============================================================
+     ADD DATABASE MODAL
+============================================================== -->
+
+<div
+    class="modal fade"
+    id="databaseModal"
+    tabindex="-1"
+    aria-hidden="true"
+>
+
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+
+        <div class="modal-content database-modal">
+
+            <div class="modal-header">
+
+                <div>
+
+                    <h3>
+                        <i class="bi bi-database-add"></i>
+                        Add Database
+                    </h3>
+
+                    <p>
+                        Connect a new business database to Enterprise AI.
+                    </p>
+
+                </div>
+
+                <button
+                    type="button"
+                    class="btn-close"
+                    data-bs-dismiss="modal"
+                ></button>
+
+            </div>
+
+
+            <div class="modal-body">
+
+                <div class="form-section-title">
+                    Database Type
+                </div>
+
+
+                <div class="database-type-grid">
+
+                    <button
+                        type="button"
+                        class="database-type selected"
+                        data-type="PostgreSQL"
+                    >
+
+                        <i class="bi bi-database-fill"></i>
+
+                        <strong>PostgreSQL</strong>
+
+                        <span>PostgreSQL database</span>
+
+                    </button>
+
+
+                    <button
+                        type="button"
+                        class="database-type"
+                        data-type="MySQL"
+                    >
+
+                        <i class="bi bi-database-fill"></i>
+
+                        <strong>MySQL</strong>
+
+                        <span>MySQL database</span>
+
+                    </button>
+
+
+                    <button
+                        type="button"
+                        class="database-type"
+                        data-type="SQL Server"
+                    >
+
+                        <i class="bi bi-database-fill"></i>
+
+                        <strong>SQL Server</strong>
+
+                        <span>Microsoft SQL Server</span>
+
+                    </button>
+
+
+                    <button
+                        type="button"
+                        class="database-type"
+                        data-type="Oracle"
+                    >
+
+                        <i class="bi bi-database-fill"></i>
+
+                        <strong>Oracle</strong>
+
+                        <span>Oracle database</span>
+
+                    </button>
+
+                </div>
+
+
+                <div class="form-section-title mt-4">
+                    Connection Details
+                </div>
+
+
+                <div class="row g-3">
+
+                    <div class="col-md-12">
+
+                        <label>
+                            Connection Name
+                        </label>
+
+                        <input
+                            type="text"
+                            id="connectionName"
+                            class="form-control custom-input"
+                            placeholder="Example: Sales Database"
+                        >
+
+                    </div>
+
+
+                    <div class="col-md-8">
+
+                        <label>
+                            Host
+                        </label>
+
+                        <input
+                            type="text"
+                            id="connectionHost"
+                            class="form-control custom-input"
+                            placeholder="database.company.com"
+                        >
+
+                    </div>
+
+
+                    <div class="col-md-4">
+
+                        <label>
+                            Port
+                        </label>
+
+                        <input
+                            type="number"
+                            id="connectionPort"
+                            class="form-control custom-input"
+                            value="5432"
+                        >
+
+                    </div>
+
+
+                    <div class="col-md-6">
+
+                        <label>
+                            Database Name
+                        </label>
+
+                        <input
+                            type="text"
+                            id="connectionDatabase"
+                            class="form-control custom-input"
+                            placeholder="database_name"
+                        >
+
+                    </div>
+
+
+                    <div class="col-md-6">
+
+                        <label>
+                            Username
+                        </label>
+
+                        <input
+                            type="text"
+                            id="connectionUsername"
+                            class="form-control custom-input"
+                            placeholder="username"
+                        >
+
+                    </div>
+
+
+                    <div class="col-md-12">
+
+                        <label>
+                            Password
+                        </label>
+
+                        <div class="password-wrapper">
+
+                            <input
+                                type="password"
+                                id="connectionPassword"
+                                class="form-control custom-input"
+                                placeholder="Database password"
+                            >
+
+                            <button
+                                type="button"
+                                id="togglePassword"
+                            >
+                                <i class="bi bi-eye"></i>
+                            </button>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <div class="security-note">
+
+                    <i class="bi bi-shield-check"></i>
+
+                    <div>
+
+                        <strong>Your credentials are protected</strong>
+
+                        <span>
+                            Passwords should be encrypted before being stored
+                            and should never be displayed again.
+                        </span>
+
+                    </div>
+
+                </div>
+
+
+                <div
+                    id="connectionMessage"
+                    class="connection-message d-none"
+                ></div>
+
+            </div>
+
+
+            <div class="modal-footer">
+
+                <button
+                    type="button"
+                    class="secondary-button"
+                    data-bs-dismiss="modal"
+                >
+                    Cancel
+                </button>
+
+                <button
+                    type="button"
+                    class="test-button"
+                    id="testConnectionBtn"
+                >
+                    <i class="bi bi-plug"></i>
+                    Test Connection
+                </button>
+
+                <button
+                    type="button"
+                    class="primary-button"
+                    id="saveDatabaseBtn"
+                >
+                    <i class="bi bi-check-lg"></i>
+                    Save Database
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- Bootstrap JS -->
+
+<script
+    src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+></script>
+
+<script src="/static/app.js?v=11"></script>
+
 </body>
 </html>

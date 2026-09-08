@@ -26,8 +26,10 @@ class QuestionRequest(BaseModel):
     user_id: str = "default_user"
     question: str
     language: str = "en-US"
+    database_id: int | None = None
 
 
 class AIResponse(BaseModel):
     answer: str
     data: list
+    sql: str | None = None

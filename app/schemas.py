@@ -1,7 +1,6 @@
 from datetime import date
+
 from pydantic import BaseModel
-
-
 
 
 class SalesBase(BaseModel):
@@ -23,21 +22,14 @@ class SalesResponse(SalesBase):
         from_attributes = True
 
 
-
-
 class QuestionRequest(BaseModel):
-
     user_id: str = "default_user"
-
     question: str
-
     language: str = "en-US"
-
-
+    database_id: int | None = None
 
 
 class AIResponse(BaseModel):
-
     answer: str
-
     data: list
+    sql: str | None = None

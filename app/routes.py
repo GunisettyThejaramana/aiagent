@@ -17,7 +17,13 @@ from app.agents.router_agent import route_question
 
 from app.services.search_service import SearchService
 
+from app.database_manager import (
+    create_database_engine_from_saved_connection
+)
 
+from app.agents.dynamic_sql_agent import (
+    generate_dynamic_sql
+)
 router = APIRouter()
 
 search_service = SearchService()
@@ -55,9 +61,10 @@ def ask_ai(
     print("🚀 NEW REQUEST")
     print("=" * 60)
 
-    print(f"Question : {request.question}")
-    print(f"User ID  : {request.user_id}")
-    print(f"Language : {request.language}")
+    print(f"Question    : {request.question}")
+    print(f"User ID     : {request.user_id}")
+    print(f"Language    : {request.language}")
+    print(f"Database ID : {request.database_id}")
 
     user_id = request.user_id
 
@@ -69,11 +76,128 @@ def ask_ai(
 
     history = get_memory(user_id)
 
-    source = route_question(request.question)
+    # --------------------------------------------------
+    # CASE 1:
+    # User selected a database.
+    # --------------------------------------------------
 
-    print(f"Detected Source : {source}")
+    if request.database_id is not None:
 
-    
+        selected_engine = None
+
+        try:
+
+            print(
+                f"Connecting to database "
+                f"{request.database_id}..."
+            )
+
+            selected_engine = (
+                create_database_engine_from_saved_connection(
+                    request.database_id
+                )
+            )
+
+            print(
+                "Selected database connection successful."
+            )
+
+            # ------------------------------------------
+            # Generate SQL using actual database schema
+            # ------------------------------------------
+
+            sql = generate_dynamic_sql(
+                request.question,
+                selected_engine
+            )
+
+            print("Generated SQL:")
+            print(sql)
+
+            # ------------------------------------------
+            # Execute SQL
+            # ------------------------------------------
+
+            dataframe = pd.read_sql(
+                sql,
+                selected_engine
+            )
+
+            print(
+                f"Rows returned: {len(dataframe)}"
+            )
+
+            # ------------------------------------------
+            # Generate natural-language answer
+            # ------------------------------------------
+
+            answer = ask_llm(
+                request.question,
+                dataframe,
+                request.language
+            )
+
+            add_message(
+                user_id,
+                "assistant",
+                answer
+            )
+
+            return {
+                "source": "database",
+                "data_source": "selected_database",
+                "database_id": request.database_id,
+                "question": request.question,
+                "sql": sql,
+                "answer": answer,
+                "rows": dataframe.to_dict(
+                    orient="records"
+                ),
+                "memory_count": len(history)
+            }
+
+        except ValueError as exc:
+
+            print(
+                f"Database validation error: {exc}"
+            )
+
+            raise HTTPException(
+                status_code=400,
+                detail=str(exc)
+            )
+
+        except Exception as exc:
+
+            print(
+                f"Database query error: {exc}"
+            )
+
+            raise HTTPException(
+                status_code=400,
+                detail=f"Database query failed: {str(exc)}"
+            )
+
+        finally:
+
+            if selected_engine is not None:
+
+                selected_engine.dispose()
+
+    # --------------------------------------------------
+    # CASE 2:
+    # No database selected.
+    #
+    # Keep your existing application behavior.
+    # --------------------------------------------------
+
+    source = route_question(
+        request.question
+    )
+
+    print(
+        f"Detected Source : {source}"
+    )
 
     if source == "documents":
 
@@ -128,35 +252,37 @@ def ask_ai(
             "memory_count": len(history)
         }
 
-    
-
     sql = None
 
     if source == "sales":
-        sql = generate_sales_sql(request.question)
+
+        sql = generate_sales_sql(
+            request.question
+        )
 
     elif source == "hr":
-        sql = generate_hr_sql(request.question)
+
+        sql = generate_hr_sql(
+            request.question
+        )
 
     elif source == "finance":
-        sql = generate_finance_sql(request.question)
 
-    elif source == "operations":
-       
-        sql = None
+        sql = generate_finance_sql(
+            request.question
+        )
 
-    elif source == "inventory":
-        
-        sql = None
+    elif source in [
+        "operations",
+        "inventory",
+        "production"
+    ]:
 
-    elif source == "production":
-       
         sql = None
 
     else:
-        sql = None
 
-    
+        sql = None
 
     if sql is None:
 
@@ -205,8 +331,6 @@ def ask_ai(
             "memory_count": len(history)
         }
 
-    
-
     try:
 
         dataframe = pd.read_sql(
@@ -223,8 +347,6 @@ def ask_ai(
             "answer": f"SQL Error: {str(e)}",
             "rows": []
         }
-
-    
 
     if dataframe.empty:
 
@@ -262,8 +384,6 @@ def ask_ai(
                 "rows": [],
                 "memory_count": len(history)
             }
-
-    
 
     answer = ask_llm(
         request.question,
