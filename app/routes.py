@@ -1,4 +1,3 @@
-
 import pandas as pd
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -23,6 +22,10 @@ from app.database_manager import (
 
 from app.custom_ai.custom_ai_engine import (
     CustomAIEngine
+)
+
+from app.custom_ai.knowledge_router import (
+    knowledge_router
 )
 
 
@@ -100,11 +103,140 @@ def ask_ai(
     # CASE 1:
     # DATABASE SELECTED
     #
-    # Database questions use the Custom AI Engine.
-    # No OpenAI / LLM is used in this path.
+    # The selected database is available, but the Knowledge Router
+    # decides whether the question belongs to the database or
+    # local documents.
     # ============================================================
 
     if request.database_id is not None:
+
+        knowledge_source = knowledge_router.route(
+            request.question
+        )
+
+        print(
+            f"Knowledge Source : {knowledge_source}"
+        )
+
+        # ========================================================
+        # DOCUMENT QUESTION
+        # ========================================================
+
+        if knowledge_source == "documents":
+
+            print(
+                "Routing question to local documents."
+            )
+
+            result = (
+                search_service.search_local_documents(
+                    request.question
+                )
+            )
+
+            documents = result["documents"]
+
+            if documents:
+
+                context = "\n\n".join(
+                    doc.page_content
+                    for doc in documents
+                )
+
+                document_df = pd.DataFrame(
+                    {
+                        "Document Content": [
+                            context
+                        ]
+                    }
+                )
+
+                answer = ask_llm(
+                    request.question,
+                    document_df,
+                    request.language
+                )
+
+                add_message(
+                    user_id,
+                    "assistant",
+                    answer
+                )
+
+                return {
+                    "source": "documents",
+
+                    "data_source": (
+                        "local_documents"
+                    ),
+
+                    "database_id": (
+                        request.database_id
+                    ),
+
+                    "question": (
+                        request.question
+                    ),
+
+                    "sql": None,
+
+                    "answer": answer,
+
+                    "rows": [],
+
+                    "columns": [],
+
+                    "memory_count": (
+                        len(history)
+                    ),
+
+                    "ai_engine": (
+                        "document_search"
+                    )
+                }
+
+            return {
+                "source": "documents",
+
+                "data_source": (
+                    "local_documents"
+                ),
+
+                "database_id": (
+                    request.database_id
+                ),
+
+                "question": (
+                    request.question
+                ),
+
+                "sql": None,
+
+                "answer": (
+                    "No matching local "
+                    "documents found."
+                ),
+
+                "rows": [],
+
+                "columns": [],
+
+                "memory_count": (
+                    len(history)
+                ),
+
+                "ai_engine": (
+                    "document_search"
+                )
+            }
+
+        # ========================================================
+        # DATABASE QUESTION
+        # ========================================================
+
+        print(
+            "Routing question to selected database."
+        )
 
         selected_engine = None
 
@@ -136,6 +268,7 @@ def ask_ai(
             # IMPORTANT:
             # Pass database_id so the database knowledge cache
             # uses "database 2" instead of "engine:<id>".
+
             ai_result = custom_ai_engine.process(
                 request.question,
                 selected_engine,
@@ -345,11 +478,12 @@ def ask_ai(
             #
             # selected_engine.dispose()
             #
-            # The database manager now keeps engines in an
-            # in-memory connection cache. Disposing the engine
-            # here would destroy the connection pool and cause
-            # a new connection to be created repeatedly.
+            # The database manager keeps engines in an
+            # in-memory connection cache.
             #
+            # Disposing here would destroy the connection pool
+            # and cause a new connection to be created repeatedly.
+
             pass
 
     # ============================================================
@@ -693,4 +827,3 @@ def ask_ai(
             len(history)
         )
     }
-

@@ -1,89 +1,69 @@
-from app.custom_ai.business_language_engine import (
-    business_language_engine,
-)
+from app.custom_ai.document_knowledge_cache import document_knowledge_cache
+from app.custom_ai.document_reasoning_engine import document_reasoning_engine
 
-from app.custom_ai.business_context_engine import (
-    business_context_engine,
-)
+
+print("=" * 70)
+print("DOCUMENT REASONING ENGINE TEST")
+print("=" * 70)
+
+print("\nLoading document cache...")
+
+documents = document_knowledge_cache.get_documents()
+
+print("Cached documents:", len(documents))
+
+if not documents:
+    print("ERROR: No documents found in cache.")
+    raise SystemExit(1)
 
 
 questions = [
-    "Who has the highest outstanding balance?",
-    "Show the workers with the biggest advance",
-    "Which employees have the highest salary?",
-    "How much inventory do we have?",
-    "What is the total credit?",
-    "What is the total debit?",
-    "What was the revenue last month?",
-    "How many sarees were produced?",
+    "What is mentioned about salary?",
+    "What does the employee policy say about salary?",
+    "What are the rules?",
+    "What information is available about employees?",
 ]
 
 
 for question in questions:
 
-    print("=" * 70)
+    print("\n" + "-" * 70)
+    print("QUESTION:", question)
+    print("-" * 70)
 
-    print("QUESTION:")
-    print(question)
-
-    language_result = (
-        business_language_engine.understand(
-            question
-        )
+    result = document_reasoning_engine.process(
+        question,
+        documents,
     )
 
-    context_result = (
-        business_context_engine.understand(
-            question=question,
-            business_language_result=language_result,
-        )
+    print("\nSuccess:", result["success"])
+    print("Matched:", result["matched"])
+    print(
+        "Matched documents:",
+        result.get("matched_document_count", 0),
     )
 
-    print("\nCONTEXTS:")
+    print("\nQuestion terms:")
+    print(result.get("question_terms"))
 
-    for context in context_result["contexts"]:
+    print("\nAnswer:")
+    print(result["answer"])
 
-        print(
-            f"\nConcept: {context['concept']}"
-        )
+    print("\nEvidence:")
 
-        print(
-            f"Meaning: {context['meaning']}"
-        )
+    for index, item in enumerate(
+        result.get("evidence", []),
+        start=1,
+    ):
+        print(f"\n[{index}] Score: {item['score']}")
+        print(item["text"])
 
-        print(
-            f"Confidence: {context['confidence']}"
-        )
+        source = item.get("metadata", {}).get("source")
 
-        print(
-            f"Matched context: "
-            f"{context['matched_context']}"
-        )
+        if source:
+            print("Source:", source)
 
-        print(
-            "Preferred columns:",
-            context[
-                "preferred_column_keywords"
-            ],
-        )
 
-        print(
-            "Preferred tables:",
-            context[
-                "preferred_table_keywords"
-            ],
-        )
-
-        print(
-            "Avoid tables:",
-            context[
-                "avoid_table_keywords"
-            ],
-        )
-
-        print(
-            "Avoid columns:",
-            context[
-                "avoid_column_keywords"
-            ],
-        )
+print("\n" + "=" * 70)
+print("TEST COMPLETED")
+print("=" * 70)

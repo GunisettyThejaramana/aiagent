@@ -1,14 +1,11 @@
 import re
 
-from app.data_sources.local_drive_loader import LocalDriveLoader
-from app.data_sources.file_detector import FileDetector
+from app.custom_ai.document_knowledge_cache import document_knowledge_cache
 
 
 class SearchService:
 
     def __init__(self):
-        self.drive_loader = LocalDriveLoader()
-        self.detector = FileDetector()
 
         self.stop_words = {
             "the",
@@ -94,9 +91,9 @@ class SearchService:
 
     def search_local_documents(self, question: str):
 
-        files = self.drive_loader.scan()
+        documents = document_knowledge_cache.get_documents()
 
-        if not files:
+        if not documents:
 
             return {
                 "documents": [],
@@ -109,47 +106,77 @@ class SearchService:
         best_score = 0
 
         print("\n" + "=" * 60)
-        print("Searching Local Documents")
+        print("Searching Cached Local Documents")
         print("=" * 60)
+
         print("Keywords:", keywords)
+        print("Cached Documents:", len(documents))
 
-        for file in files:
+        # ---------------------------------------------------------
+        # Group documents by source file
+        # ---------------------------------------------------------
 
-            print(f"\nScanning: {file.name}")
+        grouped_documents = {}
 
-            docs = self.detector.load(file)
+        for doc in documents:
 
-            if not docs:
-                continue
+            source = None
+
+            if hasattr(doc, "metadata") and doc.metadata:
+                source = (
+                    doc.metadata.get("source")
+                    or doc.metadata.get("file_path")
+                    or doc.metadata.get("filename")
+                )
+
+            if source is None:
+                source = "__unknown_source__"
+
+            grouped_documents.setdefault(source, []).append(doc)
+
+        # ---------------------------------------------------------
+        # Search cached documents
+        # ---------------------------------------------------------
+
+        for source, docs in grouped_documents.items():
 
             score = 0
 
-            filename = self.normalize(file.name)
+            filename = self.normalize(str(source))
 
-            # -----------------------------
-            # Filename Matching
-            # -----------------------------
+            # -----------------------------------------------------
+            # Filename matching
+            # -----------------------------------------------------
+
             for keyword in keywords:
 
                 if keyword in filename:
                     score += 25
 
-            # -----------------------------
-            # Content Matching
-            # -----------------------------
+            # -----------------------------------------------------
+            # Content matching
+            # -----------------------------------------------------
+
             for doc in docs:
 
-                text = self.normalize(doc.page_content)
+                page_content = getattr(
+                    doc,
+                    "page_content",
+                    ""
+                )
+
+                text = self.normalize(page_content)
 
                 for keyword in keywords:
 
                     occurrences = text.count(keyword)
 
                     if occurrences:
-
                         score += occurrences * 3
 
-            print(f"Score: {score}")
+            # -----------------------------------------------------
+            # Best document
+            # -----------------------------------------------------
 
             if score > best_score:
 
@@ -160,7 +187,11 @@ class SearchService:
 
         if best_documents:
 
-            print("Selected Document:", len(best_documents), "page(s)")
+            print(
+                "Selected Document:",
+                len(best_documents),
+                "page(s)"
+            )
 
         else:
 
