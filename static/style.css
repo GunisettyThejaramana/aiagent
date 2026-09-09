@@ -3918,6 +3918,61 @@ textarea:focus-visible {
 }
 
 
+
+
+.voice-circle.listening {
+    animation: voicePulse 1.3s infinite;
+}
+
+.voice-circle.speaking {
+    animation: voiceSpeak 0.9s infinite;
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+}
+
+@keyframes voicePulse {
+    0% {
+        box-shadow:
+            0 0 0 10px rgba(37, 99, 235, 0.18),
+            0 0 30px rgba(168, 85, 247, 0.4);
+    }
+
+    70% {
+        box-shadow:
+            0 0 0 28px rgba(37, 99, 235, 0),
+            0 0 40px rgba(168, 85, 247, 0.3);
+    }
+
+    100% {
+        box-shadow:
+            0 0 0 10px rgba(37, 99, 235, 0),
+            0 0 30px rgba(168, 85, 247, 0.3);
+    }
+}
+
+@keyframes voiceSpeak {
+    0% {
+        box-shadow:
+            0 0 0 10px rgba(34, 197, 94, 0.25),
+            0 0 30px rgba(34, 197, 94, 0.45);
+        transform: scale(1);
+    }
+
+    50% {
+        box-shadow:
+            0 0 0 22px rgba(34, 197, 94, 0),
+            0 0 45px rgba(34, 197, 94, 0.35);
+        transform: scale(1.05);
+    }
+
+    100% {
+        box-shadow:
+            0 0 0 10px rgba(34, 197, 94, 0.15),
+            0 0 30px rgba(34, 197, 94, 0.35);
+        transform: scale(1);
+    }
+}
+
+
 .managed-db strong {
 
     display:
@@ -4798,4 +4853,339 @@ textarea:focus-visible {
 
     }
 
+}
+
+
+
+/* =========================================================
+   DOCUMENTS LIST
+========================================================= */
+
+.documents-summary {
+    padding: 12px 4px 18px;
+    color: #64748b;
+    font-size: 13px;
+}
+
+.documents-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 420px;
+    overflow-y: auto;
+}
+
+.document-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    border-radius: 14px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    transition: 0.2s ease;
+}
+
+.document-item:hover {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+}
+
+.document-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    color: white;
+    flex-shrink: 0;
+}
+
+.document-icon.pdf { background: linear-gradient(135deg, #ef4444, #dc2626); }
+.document-icon.docx,
+.document-icon.doc { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+.document-icon.xlsx,
+.document-icon.xls,
+.document-icon.csv { background: linear-gradient(135deg, #22c55e, #16a34a); }
+.document-icon.pptx,
+.document-icon.ppt { background: linear-gradient(135deg, #f97316, #ea580c); }
+.document-icon.txt,
+.document-icon.md { background: linear-gradient(135deg, #64748b, #475569); }
+.document-icon.json,
+.document-icon.xml,
+.document-icon.html { background: linear-gradient(135deg, #a855f7, #7c3aed); }
+.document-icon.default { background: linear-gradient(135deg, #94a3b8, #64748b); }
+
+.document-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.document-info strong {
+    display: block;
+    font-size: 14px;
+    color: #0f172a;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.document-info span {
+    display: block;
+    font-size: 12px;
+    color: #64748b;
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.document-meta {
+    font-size: 11px;
+    color: #94a3b8;
+    text-align: right;
+    flex-shrink: 0;
+}
+
+.documents-empty {
+    text-align: center;
+    padding: 40px 20px;
+    color: #94a3b8;
+}
+
+.documents-empty i {
+    font-size: 36px;
+    display: block;
+    margin-bottom: 12px;
+    opacity: 0.6;
+}
+
+.documents-empty strong {
+    display: block;
+    color: #64748b;
+    margin-bottom: 4px;
+}
+
+
+
+
+/* =========================================================
+   AI EMPLOYEE AVATAR — SPEAKING ANIMATION
+========================================================= */
+
+.assistant-portrait {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.assistant-avatar {
+    width: 140px;
+    height: 140px;
+    object-fit: cover;
+    border-radius: 50%;
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+    z-index: 2;
+}
+
+.portrait-glow {
+    position: absolute;
+    width: 160px;
+    height: 160px;
+    border-radius: 50%;
+    background: radial-gradient(
+        circle,
+        rgba(101, 70, 239, 0.35),
+        transparent 70%
+    );
+    z-index: 1;
+    opacity: 0.6;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+/* When AI is speaking — human moves */
+.assistant-portrait.speaking .assistant-avatar {
+    animation: avatarTalk 0.7s ease-in-out infinite;
+    box-shadow:
+        0 0 0 6px rgba(34, 197, 94, 0.25),
+        0 0 28px rgba(34, 197, 94, 0.4);
+}
+
+.assistant-portrait.speaking .portrait-glow {
+    animation: glowPulse 0.7s ease-in-out infinite;
+    background: radial-gradient(
+        circle,
+        rgba(34, 197, 94, 0.45),
+        transparent 70%
+    );
+    opacity: 1;
+}
+
+@keyframes avatarTalk {
+    0% {
+        transform: scale(1) translateY(0);
+    }
+    25% {
+        transform: scale(1.03) translateY(-2px);
+    }
+    50% {
+        transform: scale(1.06) translateY(0);
+    }
+    75% {
+        transform: scale(1.03) translateY(2px);
+    }
+    100% {
+        transform: scale(1) translateY(0);
+    }
+}
+
+@keyframes glowPulse {
+    0% {
+        transform: scale(1);
+        opacity: 0.7;
+    }
+    50% {
+        transform: scale(1.15);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 0.7;
+    }
+}
+
+
+
+/* =========================================================
+   FREE TALKING MOUTH (no paid API)
+========================================================= */
+
+.assistant-portrait {
+    position: relative;
+    width: 160px;
+    height: 160px;
+    margin: 0 auto 12px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.assistant-avatar {
+    width: 140px;
+    height: 140px;
+    object-fit: cover;
+    border-radius: 50%;
+    z-index: 2;
+    position: relative;
+}
+
+.portrait-glow {
+    position: absolute;
+    width: 160px;
+    height: 160px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(101, 70, 239, 0.3), transparent 70%);
+    z-index: 1;
+}
+
+/* Mouth positioned over the lower face */
+.talking-mouth {
+    position: absolute;
+    left: 50%;
+    bottom: 38px;          /* adjust if needed for your photo */
+    transform: translateX(-50%);
+    width: 28px;
+    height: 8px;
+    background: #3a2a2a;
+    border-radius: 50% / 60%;
+    z-index: 3;
+    opacity: 0;
+    pointer-events: none;
+    transition: height 0.08s ease, opacity 0.15s ease;
+}
+
+/* When speaking */
+.assistant-portrait.speaking .talking-mouth {
+    opacity: 0.85;
+    animation: mouthTalk 0.28s ease-in-out infinite;
+}
+
+.assistant-portrait.speaking .assistant-avatar {
+    animation: slightHeadNod 1.2s ease-in-out infinite;
+}
+
+.assistant-portrait.speaking .portrait-glow {
+    animation: glowTalk 0.8s ease-in-out infinite;
+    background: radial-gradient(circle, rgba(34, 197, 94, 0.4), transparent 70%);
+}
+
+@keyframes mouthTalk {
+    0%   { height: 6px;  width: 26px; border-radius: 50% / 55%; }
+    30%  { height: 16px; width: 22px; border-radius: 40% / 50%; }
+    55%  { height: 9px;  width: 28px; border-radius: 50% / 60%; }
+    80%  { height: 18px; width: 20px; border-radius: 35% / 45%; }
+    100% { height: 6px;  width: 26px; border-radius: 50% / 55%; }
+}
+
+@keyframes slightHeadNod {
+    0%, 100% { transform: scale(1) translateY(0); }
+    50%      { transform: scale(1.02) translateY(-1.5px); }
+}
+
+@keyframes glowTalk {
+    0%, 100% { transform: scale(1);   opacity: 0.65; }
+    50%      { transform: scale(1.12); opacity: 1; }
+}
+
+
+
+.assistant-portrait {
+    position: relative;
+    width: 160px;
+    height: 160px;
+    margin: 0 auto 14px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.assistant-avatar {
+    width: 140px;
+    height: 140px;
+    object-fit: cover;
+    border-radius: 50%;
+    z-index: 2;
+    transition: transform 0.2s ease;
+}
+
+.portrait-glow {
+    position: absolute;
+    width: 165px;
+    height: 165px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(101, 70, 239, 0.3), transparent 70%);
+    z-index: 1;
+}
+
+/* When AI is speaking */
+.assistant-portrait.speaking .assistant-avatar {
+    animation: talkMove 0.6s ease-in-out infinite;
+}
+
+.assistant-portrait.speaking .portrait-glow {
+    background: radial-gradient(circle, rgba(34, 197, 94, 0.45), transparent 70%);
+    animation: glowPulse 0.7s ease-in-out infinite;
+}
+
+@keyframes talkMove {
+    0%, 100% { transform: scale(1) translateY(0); }
+    50% { transform: scale(1.04) translateY(-2px); }
+}
+
+@keyframes glowPulse {
+    0%, 100% { transform: scale(1); opacity: 0.7; }
+    50% { transform: scale(1.12); opacity: 1; }
 }

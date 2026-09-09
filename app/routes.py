@@ -24,6 +24,12 @@ from app.custom_ai.custom_ai_engine import (
     CustomAIEngine
 )
 
+
+from app.custom_ai.document_knowledge_cache import (
+    document_knowledge_cache
+)
+
+
 from app.custom_ai.knowledge_router import (
     knowledge_router
 )
@@ -827,3 +833,64 @@ def ask_ai(
             len(history)
         )
     }
+
+
+
+
+
+
+# ================================================================
+# DOCUMENTS
+# ================================================================
+
+@router.get("/documents")
+def get_documents():
+    """
+    Return list of locally scanned documents
+    and cache status for the Documents UI.
+    """
+
+    try:
+        # Prefer already-built cache; avoid long blocking scans when possible
+        if not document_knowledge_cache.is_ready():
+            try:
+                document_knowledge_cache.build()
+            except Exception as build_err:
+                print(f"Document cache build warning: {build_err}")
+
+        info = document_knowledge_cache.get_info()
+        metadata = document_knowledge_cache.get_file_metadata()
+
+        files = []
+
+        for path, meta in metadata.items():
+            files.append({
+                "name": meta.get("name", ""),
+                "path": meta.get("path", path),
+                "suffix": meta.get("suffix", ""),
+                "size": meta.get("size", 0),
+                "modified_time": meta.get("modified_time", 0),
+                "document_count": meta.get("document_count", 0),
+            })
+
+        files.sort(key=lambda f: f["name"].lower())
+
+        return {
+            "ready": info.get("ready", False),
+            "document_count": info.get("document_count", 0),
+            "file_count": info.get("file_count", 0),
+            "scan_paths": info.get("scan_paths", []),
+            "files": files,
+        }
+
+    except Exception as e:
+        # Never hang the UI — return empty list with error message
+        print(f"/documents error: {e}")
+        return {
+            "ready": False,
+            "document_count": 0,
+            "file_count": 0,
+            "scan_paths": [],
+            "files": [],
+            "error": str(e),
+        }

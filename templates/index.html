@@ -957,6 +957,46 @@
                         </section>
 
 
+
+                                            <!-- DOCUMENTS -->
+
+                    <section class="dashboard-card" id="documentsSection">
+
+                        <div class="card-header">
+
+                            <div class="card-title">
+
+                                <div class="title-icon">
+                                    <i class="bi bi-file-earmark-text"></i>
+                                </div>
+
+                                <h2>Local Documents</h2>
+
+                            </div>
+
+                            <button
+                                type="button"
+                                class="primary-button"
+                                id="refreshDocumentsBtn"
+                                title="Refresh document list"
+                            >
+                                <i class="bi bi-arrow-clockwise"></i>
+                                Refresh
+                            </button>
+
+                        </div>
+
+                        <div class="documents-summary" id="documentsSummary">
+                            <span id="documentsCountText">Loading documents...</span>
+                        </div>
+
+                        <div class="documents-list" id="documentsList">
+                            <!-- Documents will be loaded here -->
+                        </div>
+
+                    </section>
+
+
                         <!-- =================================================
                              ASK AI
                         ================================================== -->
@@ -1229,29 +1269,21 @@
 
                             <!-- AI EMPLOYEE PORTRAIT -->
 
-                            <div class="assistant-portrait">
+                            <div class="assistant-portrait" id="assistantPortrait">
+    <div class="portrait-glow"></div>
 
-                                <div class="portrait-glow"></div>
+    <img
+        id="assistantImage"
+        src="/static/ai_employee.png"
+        alt="AI Assistant"
+        class="assistant-avatar"
+        onerror="this.style.display='none'; this.nextElementSibling.classList.add('show');"
+    >
 
-
-                                <img
-                                    src="/static/ai_employee.png"
-                                    alt="AI Assistant"
-                                    class="assistant-avatar"
-                                    onerror="
-                                        this.style.display='none';
-                                        this.nextElementSibling.classList.add('show');
-                                    "
-                                >
-
-
-                                <div class="portrait-fallback">
-
-                                    <i class="bi bi-person-fill"></i>
-
-                                </div>
-
-                            </div>
+    <div class="portrait-fallback">
+        <i class="bi bi-person-fill"></i>
+    </div>
+</div>
 
 
                             <!-- GREETING -->

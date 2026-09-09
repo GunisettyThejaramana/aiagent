@@ -1,24 +1,11 @@
 document.addEventListener("DOMContentLoaded", () => {
-
     "use strict";
-
-
-    /* =========================================================
-       HELPERS
-    ========================================================== */
 
     const $ = (id) => document.getElementById(id);
 
-
-    /* =========================================================
-       ELEMENTS
-    ========================================================== */
-
     const questionInput = $("question");
     const askBtn = $("askBtn");
-
     const answerBox = $("answer");
-
     const loading = $("loading");
 
     const sqlSection = $("sqlSection");
@@ -29,7 +16,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const tableBody = $("tableBody");
 
     const databaseSelect = $("databaseSelect");
-
     const databaseCount = $("databaseCount");
 
     const databaseManagementList =
@@ -39,80 +25,71 @@ document.addEventListener("DOMContentLoaded", () => {
     const chatInput = $("chatInput");
     const chatSend = $("chatSend");
 
+    /*
+     * VOICE / LANGUAGE ELEMENTS
+     *
+     * These elements exist in the HTML.
+     * Keeping them declared here prevents
+     * "voiceStatus is not defined" and similar
+     * frontend errors.
+     */
+    const voiceBtn = $("voiceBtn");
+    const inlineVoiceBtn = $("inlineVoiceBtn");
+    const languageSelect = $("assistantLanguage");
+    const topLanguage = $("topLanguage");
+    const speakToggle = $("speakToggle");
+    const voiceResponseSetting = $("voiceResponseSetting");
 
-    /* =========================================================
-       APPLICATION STATE
-    ========================================================== */
+    const documentsList =
+        document.getElementById("documentsList");
+
+    const documentsCountText =
+        document.getElementById("documentsCountText");
+
+    const refreshDocumentsBtn =
+        document.getElementById("refreshDocumentsBtn");
 
     let databases = [];
-
     let selectedDatabase = null;
-
     let selectedDatabaseType = "PostgreSQL";
 
     let recognition = null;
-
     let voices = [];
 
     let sourceModal = null;
-
     let databaseModal = null;
 
 
-    /* =========================================================
-       AUTH HEADERS
-    ========================================================== */
-
     function getHeaders() {
-
         const headers = {
             "Content-Type": "application/json"
         };
 
-
         const token =
             localStorage.getItem("token");
 
-
         if (token) {
-
             headers.Authorization =
                 `Bearer ${token}`;
-
         }
 
-
         return headers;
-
     }
 
 
-    /* =========================================================
-       HTML ESCAPE
-    ========================================================== */
-
     function escapeHtml(value) {
-
         return String(value ?? "")
             .replace(/&/g, "&amp;")
             .replace(/</g, "&lt;")
             .replace(/>/g, "&gt;")
             .replace(/"/g, "&quot;")
             .replace(/'/g, "&#039;");
-
     }
 
 
-    /* =========================================================
-       DATABASE NORMALIZATION
-    ========================================================== */
-
     function normalizeDatabase(db) {
-
         return {
-
-            id:
-                db.id,
+            id: db.id,
 
             name:
                 db.name ||
@@ -139,27 +116,18 @@ document.addEventListener("DOMContentLoaded", () => {
             username:
                 db.username ||
                 ""
-
         };
-
     }
 
 
-    /* =========================================================
-       DATABASE LOGO
-    ========================================================== */
-
     function logoClass(type) {
-
         const t =
             String(type || "")
                 .toLowerCase();
 
-
         if (t.includes("mysql")) {
             return "mysql";
         }
-
 
         if (
             t.includes("sql server") ||
@@ -168,20 +136,13 @@ document.addEventListener("DOMContentLoaded", () => {
             return "sqlserver";
         }
 
-
         if (t.includes("oracle")) {
             return "oracle";
         }
 
-
         return "postgres";
-
     }
 
-
-    /* =========================================================
-       LOAD DATABASES
-    ========================================================== */
 
     async function loadDatabases() {
 
@@ -189,13 +150,11 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-
         databaseSelect.innerHTML = `
             <option value="">
                 Loading databases...
             </option>
         `;
-
 
         try {
 
@@ -208,10 +167,8 @@ document.addEventListener("DOMContentLoaded", () => {
                     }
                 );
 
-
             const data =
                 await response.json();
-
 
             if (!response.ok) {
 
@@ -222,23 +179,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
             }
 
-
             databases =
                 Array.isArray(data)
                     ? data.map(normalizeDatabase)
                     : [];
 
-
             if (databaseCount) {
-
                 databaseCount.textContent =
                     databases.length;
-
             }
 
-
             databaseSelect.innerHTML = "";
-
 
             if (!databases.length) {
 
@@ -248,15 +199,12 @@ document.addEventListener("DOMContentLoaded", () => {
                     </option>
                 `;
 
-
                 selectedDatabase = null;
 
                 renderManagedDatabases();
 
                 return;
-
             }
-
 
             databases.forEach(
                 db => {
@@ -266,14 +214,11 @@ document.addEventListener("DOMContentLoaded", () => {
                             "option"
                         );
 
-
                     option.value =
                         db.id;
 
-
                     option.textContent =
                         `${db.name} · ${db.type}`;
-
 
                     databaseSelect.appendChild(
                         option
@@ -281,7 +226,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 }
             );
-
 
             const previous =
                 databases.find(
@@ -292,12 +236,10 @@ document.addEventListener("DOMContentLoaded", () => {
                         )
                 );
 
-
             selectDatabase(
                 previous ||
                 databases[0]
             );
-
 
             renderManagedDatabases();
 
@@ -308,32 +250,21 @@ document.addEventListener("DOMContentLoaded", () => {
                 error
             );
 
-
             databaseSelect.innerHTML = `
                 <option value="">
                     Unable to load databases
                 </option>
             `;
 
-
             if (databaseCount) {
-
                 databaseCount.textContent =
                     "0";
-
             }
 
-
             renderManagedDatabases();
-
         }
-
     }
 
-
-    /* =========================================================
-       SELECT DATABASE
-    ========================================================== */
 
     function selectDatabase(db) {
 
@@ -341,36 +272,23 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-
         selectedDatabase =
             db;
 
-
         if (databaseSelect) {
-
             databaseSelect.value =
                 String(db.id);
-
         }
-
 
         const label =
             $("selectedSourceLabel");
 
-
         if (label) {
-
             label.textContent =
                 `AI is connected to ${db.name} and can query its business data.`;
-
         }
-
     }
 
-
-    /* =========================================================
-       DATABASE SELECT CHANGE
-    ========================================================== */
 
     if (databaseSelect) {
 
@@ -387,18 +305,11 @@ document.addEventListener("DOMContentLoaded", () => {
                             )
                     );
 
-
                 selectDatabase(db);
-
             }
         );
-
     }
 
-
-    /* =========================================================
-       MANAGED DATABASES
-    ========================================================== */
 
     function renderManagedDatabases() {
 
@@ -406,11 +317,9 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-
         if (!databases.length) {
 
             databaseManagementList.innerHTML = `
-
                 <div class="empty-state">
 
                     <i class="bi bi-database"></i>
@@ -425,13 +334,10 @@ document.addEventListener("DOMContentLoaded", () => {
                     </span>
 
                 </div>
-
             `;
 
             return;
-
         }
-
 
         databaseManagementList.innerHTML =
             databases.map(
@@ -440,11 +346,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 <div class="managed-db">
 
                     <span class="db-logo">
-
                         <i class="bi bi-database-fill"></i>
-
                     </span>
-
 
                     <div>
 
@@ -468,11 +371,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
                     </div>
 
-
                     <span class="status-tag ready">
                         Connected
                     </span>
-
 
                     <button
                         class="small-button manage-db-select"
@@ -483,10 +384,8 @@ document.addEventListener("DOMContentLoaded", () => {
                     </button>
 
                 </div>
-
             `
             ).join("");
-
 
         document
             .querySelectorAll(
@@ -510,33 +409,23 @@ document.addEventListener("DOMContentLoaded", () => {
                                         )
                                 );
 
-
                             selectDatabase(db);
-
 
                             showView(
                                 "dashboard"
                             );
-
 
                             $("askSection")
                                 ?.scrollIntoView({
                                     behavior:
                                         "smooth"
                                 });
-
                         }
                     );
-
                 }
             );
-
     }
 
-
-    /* =========================================================
-       ASK QUESTION
-    ========================================================== */
 
     async function askQuestion(
         questionOverride = null
@@ -549,7 +438,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 ""
             ).trim();
 
-
         if (!question) {
 
             showAnswer(
@@ -557,9 +445,7 @@ document.addEventListener("DOMContentLoaded", () => {
             );
 
             return;
-
         }
-
 
         if (!selectedDatabase) {
 
@@ -568,23 +454,18 @@ document.addEventListener("DOMContentLoaded", () => {
             );
 
             return;
-
         }
 
-
         resetResults();
-
 
         loading?.classList.remove(
             "d-none"
         );
 
-
         if (askBtn) {
 
             askBtn.disabled =
                 true;
-
 
             askBtn.innerHTML = `
                 <span
@@ -592,9 +473,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     spinner-border-sm"
                 ></span>
             `;
-
         }
-
 
         const requestBody = {
 
@@ -605,16 +484,15 @@ document.addEventListener("DOMContentLoaded", () => {
                 "default_user",
 
             language:
-                $("topLanguage")?.value ||
+                topLanguage?.value ||
+                languageSelect?.value ||
                 "en-US",
 
             database_id:
                 Number(
                     selectedDatabase.id
                 )
-
         };
-
 
         try {
 
@@ -631,14 +509,11 @@ document.addEventListener("DOMContentLoaded", () => {
                             JSON.stringify(
                                 requestBody
                             )
-
                     }
                 );
 
-
             const data =
                 await response.json();
-
 
             if (!response.ok) {
 
@@ -646,33 +521,27 @@ document.addEventListener("DOMContentLoaded", () => {
                     data.detail ||
                     "Unable to get an answer."
                 );
-
             }
-
 
             showAnswer(
                 data.answer ||
                 "No response received from AI."
             );
 
-
             displaySQL(
                 data.sql ||
                 ""
             );
-
 
             displayTable(
                 data.rows ||
                 []
             );
 
-
             addChatMessage(
                 question,
                 "user"
             );
-
 
             addChatMessage(
                 data.answer ||
@@ -680,11 +549,16 @@ document.addEventListener("DOMContentLoaded", () => {
                 "assistant"
             );
 
+            if (
+                !voiceResponseSetting ||
+                voiceResponseSetting.checked
+            ) {
 
-            speakAnswer(
-                data.answer ||
-                ""
-            );
+                speakAnswer(
+                    data.answer ||
+                    ""
+                );
+            }
 
         } catch (error) {
 
@@ -693,13 +567,11 @@ document.addEventListener("DOMContentLoaded", () => {
                 error
             );
 
-
             showAnswer(
                 `Unable to get an answer.
 
 ${error.message}`
             );
-
 
             addChatMessage(
                 error.message,
@@ -712,27 +584,18 @@ ${error.message}`
                 "d-none"
             );
 
-
             if (askBtn) {
 
                 askBtn.disabled =
                     false;
 
-
                 askBtn.innerHTML = `
                     <i class="bi bi-send-fill"></i>
                 `;
-
             }
-
         }
-
     }
 
-
-    /* =========================================================
-       SHOW ANSWER
-    ========================================================== */
 
     function showAnswer(text) {
 
@@ -740,16 +603,10 @@ ${error.message}`
             return;
         }
 
-
         answerBox.textContent =
             text;
-
     }
 
-
-    /* =========================================================
-       RESET RESULT AREA
-    ========================================================== */
 
     function resetResults() {
 
@@ -757,49 +614,32 @@ ${error.message}`
 
             answerBox.textContent =
                 "Analyzing your business data...";
-
         }
-
 
         sqlSection?.classList.add(
             "d-none"
         );
 
-
         tableSection?.classList.add(
             "d-none"
         );
 
-
         if (sqlBox) {
-
             sqlBox.textContent =
                 "";
-
         }
-
 
         if (tableHead) {
-
             tableHead.innerHTML =
                 "";
-
         }
-
 
         if (tableBody) {
-
             tableBody.innerHTML =
                 "";
-
         }
-
     }
 
-
-    /* =========================================================
-       DISPLAY SQL
-    ========================================================== */
 
     function displaySQL(sql) {
 
@@ -810,7 +650,6 @@ ${error.message}`
             return;
         }
 
-
         if (!sql) {
 
             sqlSection.classList.add(
@@ -818,13 +657,10 @@ ${error.message}`
             );
 
             return;
-
         }
-
 
         sqlBox.textContent =
             sql;
-
 
         if (
             $("showSqlSetting")?.checked !==
@@ -834,15 +670,9 @@ ${error.message}`
             sqlSection.classList.remove(
                 "d-none"
             );
-
         }
-
     }
 
-
-    /* =========================================================
-       DISPLAY TABLE
-    ========================================================== */
 
     function displayTable(rows) {
 
@@ -854,7 +684,6 @@ ${error.message}`
             return;
         }
 
-
         if (
             !Array.isArray(rows) ||
             !rows.length
@@ -865,15 +694,12 @@ ${error.message}`
             );
 
             return;
-
         }
-
 
         const headers =
             Object.keys(
                 rows[0]
             );
-
 
         tableHead.innerHTML =
             headers
@@ -884,7 +710,6 @@ ${error.message}`
                         )}</th>`
                 )
                 .join("");
-
 
         tableBody.innerHTML =
             rows
@@ -906,22 +731,15 @@ ${error.message}`
                         }
 
                     </tr>
-
                 `
                 )
                 .join("");
 
-
         tableSection.classList.remove(
             "d-none"
         );
-
     }
 
-
-    /* =========================================================
-       CHAT MESSAGE
-    ========================================================== */
 
     function addChatMessage(
         text,
@@ -932,30 +750,19 @@ ${error.message}`
             return;
         }
 
-
-        /*
-         * Remove empty-state message when the
-         * first real conversation starts.
-         */
-
         const emptyState =
             chatWindow.querySelector(
                 ".empty-state"
             );
 
-
         if (emptyState) {
-
             emptyState.remove();
-
         }
-
 
         const div =
             document.createElement(
                 "div"
             );
-
 
         div.className =
             `chat-message ${
@@ -963,7 +770,6 @@ ${error.message}`
                     ? "user-message"
                     : "assistant-message"
             }`;
-
 
         div.innerHTML = `
 
@@ -986,39 +792,20 @@ ${error.message}`
 
         `;
 
-
         chatWindow.appendChild(
             div
         );
 
-
         chatWindow.scrollTop =
             chatWindow.scrollHeight;
-
     }
 
 
-    /* =========================================================
-       FEMALE VOICE CONFIGURATION
-    ========================================================== */
-
     /*
-     * Browser speech synthesis does not expose a standard
-     * "gender" property.
-     *
-     * Therefore we score voices based on:
-     *
-     * 1. Exact language
-     * 2. Female voice name indicators
-     * 3. Known female Microsoft / Google / Apple voices
-     *
-     * This makes the application strongly prefer a female
-     * voice whenever the browser provides one.
+     * FEMALE VOICE CONFIGURATION
      */
 
     const femaleVoiceNames = [
-
-        /* Microsoft voices */
 
         "zira",
         "heera",
@@ -1037,8 +824,6 @@ ${error.message}`
         "natalie",
         "michelle",
 
-        /* Google voices */
-
         "google uk english female",
         "google us english female",
         "google english female",
@@ -1046,27 +831,17 @@ ${error.message}`
         "google tamil female",
         "google indian english female",
 
-        /* Apple voices */
-
         "ava",
         "allison",
         "karen",
         "moira",
         "tessa",
 
-        /* Other common female voice indicators */
-
         "female",
         "woman",
         "girl"
-
     ];
 
-
-    /*
-     * Some male voice names are explicitly excluded
-     * so the browser does not accidentally select them.
-     */
 
     const maleVoiceNames = [
 
@@ -1084,13 +859,8 @@ ${error.message}`
         "guy",
         "male",
         "man"
-
     ];
 
-
-    /* =========================================================
-       SCORE FEMALE VOICE
-    ========================================================== */
 
     function scoreFemaleVoice(
         voice,
@@ -1101,41 +871,31 @@ ${error.message}`
             return -9999;
         }
 
-
         const voiceName =
             String(
                 voice.name || ""
             ).toLowerCase();
-
 
         const voiceLang =
             String(
                 voice.lang || ""
             ).toLowerCase();
 
-
         const wantedLanguage =
             String(
                 language || "en-US"
             ).toLowerCase();
 
-
         const wantedBase =
             wantedLanguage
                 .split("-")[0];
-
 
         const voiceBase =
             voiceLang
                 .split("-")[0];
 
-
         let score = 0;
 
-
-        /* -----------------------------------------------------
-           LANGUAGE MATCH
-        ------------------------------------------------------ */
 
         if (
             voiceLang ===
@@ -1154,13 +914,8 @@ ${error.message}`
         } else {
 
             score -= 500;
-
         }
 
-
-        /* -----------------------------------------------------
-           FEMALE VOICE NAME
-        ------------------------------------------------------ */
 
         femaleVoiceNames.forEach(
             femaleName => {
@@ -1172,16 +927,10 @@ ${error.message}`
                 ) {
 
                     score += 500;
-
                 }
-
             }
         );
 
-
-        /* -----------------------------------------------------
-           MALE VOICE NAME
-        ------------------------------------------------------ */
 
         maleVoiceNames.forEach(
             maleName => {
@@ -1200,34 +949,21 @@ ${error.message}`
                 ) {
 
                     score -= 800;
-
                 }
-
             }
         );
 
-
-        /* -----------------------------------------------------
-           LOCAL SERVICE / DEFAULT VOICE
-        ------------------------------------------------------ */
 
         if (
             voice.localService
         ) {
 
             score += 30;
-
         }
 
-
         return score;
-
     }
 
-
-    /* =========================================================
-       FIND BEST FEMALE VOICE
-    ========================================================== */
 
     function getBestFemaleVoice(
         language
@@ -1237,12 +973,13 @@ ${error.message}`
             return null;
         }
 
-
         const rankedVoices =
             [...voices]
                 .map(
                     voice => ({
+
                         voice,
+
                         score:
                             scoreFemaleVoice(
                                 voice,
@@ -1259,8 +996,10 @@ ${error.message}`
 
         console.log(
             "Available speech voices:",
+
             voices.map(
                 voice => ({
+
                     name:
                         voice.name,
 
@@ -1273,9 +1012,13 @@ ${error.message}`
 
         console.log(
             "Selected female voice:",
+
             rankedVoices[0]?.voice?.name,
+
             rankedVoices[0]?.voice?.lang,
+
             "score:",
+
             rankedVoices[0]?.score
         );
 
@@ -1284,56 +1027,41 @@ ${error.message}`
             rankedVoices[0]?.voice ||
             null
         );
-
     }
 
 
-    /* =========================================================
-       TEXT TO SPEECH
-    ========================================================== */
+    /*
+     * TEXT TO SPEECH
+     *
+     * Fixed:
+     * - voiceStatus no longer referenced
+     * - languageSelect properly declared
+     * - female voice preference preserved
+     * - Tamil / Hindi supported
+     * - voice setting supported
+     */
 
     function speakAnswer(text) {
 
         if (
             !text ||
-            !$("voiceResponseSetting")?.checked
+            !window.speechSynthesis
         ) {
             return;
         }
 
 
         if (
-            !window.speechSynthesis
+            voiceResponseSetting &&
+            !voiceResponseSetting.checked
         ) {
-            console.warn(
-                "Speech synthesis is not supported by this browser."
-            );
-
             return;
         }
 
 
-        const language =
-            $("assistantLanguage")?.value ||
-            $("topLanguage")?.value ||
-            "en-US";
-
-
-        /*
-         * Always stop previous speech first.
-         */
-
         window.speechSynthesis.cancel();
 
-
-        /*
-         * Get the best available female voice.
-         */
-
-        const selectedVoice =
-            getBestFemaleVoice(
-                language
-            );
+        stopSpeakingVisual();
 
 
         const utterance =
@@ -1342,73 +1070,213 @@ ${error.message}`
             );
 
 
+        const language =
+            languageSelect?.value ||
+            topLanguage?.value ||
+            "en-US";
+
+
         utterance.lang =
             language;
 
+        utterance.rate =
+            0.95;
+
+        utterance.pitch =
+            1;
+
+        utterance.volume =
+            1;
+
+
+        let selectedVoice =
+            null;
+
 
         /*
-         * Prefer female voice.
+         * Tamil
          */
+
+        if (
+            language ===
+            "ta-IN"
+        ) {
+
+            selectedVoice =
+                voices.find(
+                    voice => {
+
+                        const voiceLang =
+                            String(
+                                voice.lang ||
+                                ""
+                            ).toLowerCase();
+
+                        const voiceName =
+                            String(
+                                voice.name ||
+                                ""
+                            ).toLowerCase();
+
+
+                        return (
+                            voiceLang.startsWith(
+                                "ta"
+                            ) ||
+
+                            voiceName.includes(
+                                "tamil"
+                            )
+                        );
+                    }
+                );
+        }
+
+
+        /*
+         * Hindi
+         */
+
+        else if (
+            language ===
+            "hi-IN"
+        ) {
+
+            selectedVoice =
+                voices.find(
+                    voice => {
+
+                        const voiceLang =
+                            String(
+                                voice.lang ||
+                                ""
+                            ).toLowerCase();
+
+                        const voiceName =
+                            String(
+                                voice.name ||
+                                ""
+                            ).toLowerCase();
+
+
+                        return (
+                            voiceLang.startsWith(
+                                "hi"
+                            ) ||
+
+                            voiceName.includes(
+                                "hindi"
+                            )
+                        );
+                    }
+                );
+        }
+
+
+        /*
+         * Other languages:
+         * choose best available female voice.
+         */
+
+        if (!selectedVoice) {
+
+            selectedVoice =
+                getBestFemaleVoice(
+                    language
+                );
+        }
+
 
         if (selectedVoice) {
 
             utterance.voice =
                 selectedVoice;
-
         }
 
 
-        /*
-         * Natural female-style speech settings.
-         *
-         * These do not change the gender of a voice,
-         * but can make the speech sound more natural.
-         */
+        utterance.onstart =
+            () => {
 
-        utterance.rate = 0.95;
+                startSpeakingVisual();
 
-        utterance.pitch = 1.05;
-
-        utterance.volume = 1.0;
+            };
 
 
-        /*
-         * Debug information.
-         */
+        utterance.onend =
+            () => {
 
-        console.log(
-            "AI voice:",
-            selectedVoice
-                ? selectedVoice.name
-                : "Browser default",
+                stopSpeakingVisual();
 
-            "| Language:",
-            language
-        );
+            };
 
 
-        /*
-         * Some browsers need a small delay after
-         * speechSynthesis.cancel().
-         */
+        utterance.onerror =
+            error => {
+
+                console.warn(
+                    "Speech synthesis error:",
+                    error
+                );
+
+                stopSpeakingVisual();
+
+            };
+
 
         setTimeout(
             () => {
+
+                if (
+                    voiceResponseSetting &&
+                    !voiceResponseSetting.checked
+                ) {
+                    return;
+                }
 
                 window.speechSynthesis.speak(
                     utterance
                 );
 
             },
-            100
+            200
         );
-
     }
 
 
-    /* =========================================================
-       LOAD VOICES
-    ========================================================== */
+        function startSpeakingVisual() {
+    try {
+        const btn = document.getElementById("voiceBtn");
+        if (btn) {
+            btn.classList.remove("listening");
+            btn.classList.add("speaking");
+            btn.innerHTML = '<i class="bi bi-volume-up-fill"></i>';
+        }
+
+        const portrait = document.getElementById("assistantPortrait");
+        if (portrait) {
+            portrait.classList.add("speaking");
+        }
+    } catch (e) {
+        console.warn(e);
+    }
+}
+
+function stopSpeakingVisual() {
+    try {
+        const btn = document.getElementById("voiceBtn");
+        if (btn) {
+            btn.classList.remove("speaking");
+            btn.innerHTML = '<i class="bi bi-mic-fill"></i>';
+        }
+
+        const portrait = document.getElementById("assistantPortrait");
+        if (portrait) {
+            portrait.classList.remove("speaking");
+        }
+    } catch (e) {
+        console.warn(e);
+    }
+}
 
     function loadVoices() {
 
@@ -1417,7 +1285,6 @@ ${error.message}`
         ) {
             return;
         }
-
 
         voices =
             window.speechSynthesis
@@ -1435,6 +1302,7 @@ ${error.message}`
             console.table(
                 voices.map(
                     voice => ({
+
                         Name:
                             voice.name,
 
@@ -1446,22 +1314,12 @@ ${error.message}`
                     })
                 )
             );
-
         }
-
     }
 
 
-    /*
-     * Initial voice loading.
-     */
-
     loadVoices();
 
-
-    /*
-     * Chrome/Edge often loads voices asynchronously.
-     */
 
     if (
         window.speechSynthesis
@@ -1473,13 +1331,12 @@ ${error.message}`
                 loadVoices();
 
             };
-
     }
 
 
-    /* =========================================================
-       VOICE RECOGNITION
-    ========================================================== */
+    /*
+     * SPEECH RECOGNITION
+     */
 
     const SpeechRecognition =
         window.SpeechRecognition ||
@@ -1503,19 +1360,18 @@ ${error.message}`
         recognition.onstart =
             () => {
 
-                $("voiceBtn")
+                voiceBtn
                     ?.classList
                     .add(
                         "listening"
                     );
 
 
-                $("inlineVoiceBtn")
+                inlineVoiceBtn
                     ?.classList
                     .add(
                         "listening"
                     );
-
             };
 
 
@@ -1532,7 +1388,6 @@ ${error.message}`
 
                     questionInput.value =
                         transcript;
-
                 }
 
 
@@ -1540,33 +1395,30 @@ ${error.message}`
 
                     chatInput.value =
                         transcript;
-
                 }
 
 
                 askQuestion(
                     transcript
                 );
-
             };
 
 
         recognition.onend =
             () => {
 
-                $("voiceBtn")
+                voiceBtn
                     ?.classList
                     .remove(
                         "listening"
                     );
 
 
-                $("inlineVoiceBtn")
+                inlineVoiceBtn
                     ?.classList
                     .remove(
                         "listening"
                     );
-
             };
 
 
@@ -1577,15 +1429,9 @@ ${error.message}`
                     "Speech recognition:",
                     error
                 );
-
             };
-
     }
 
-
-    /* =========================================================
-       START VOICE
-    ========================================================== */
 
     function startVoice() {
 
@@ -1596,13 +1442,12 @@ ${error.message}`
             );
 
             return;
-
         }
 
 
         recognition.lang =
-            $("assistantLanguage")?.value ||
-            $("topLanguage")?.value ||
+            languageSelect?.value ||
+            topLanguage?.value ||
             "en-US";
 
 
@@ -1613,31 +1458,30 @@ ${error.message}`
         } catch (_) {
 
             /*
-             * Recognition may already be running.
+             * Recognition may already
+             * be running.
              */
-
         }
-
     }
 
 
-    $("voiceBtn")
+    voiceBtn
         ?.addEventListener(
             "click",
             startVoice
         );
 
 
-    $("inlineVoiceBtn")
+    inlineVoiceBtn
         ?.addEventListener(
             "click",
             startVoice
         );
 
 
-    /* =========================================================
-       NAVIGATION
-    ========================================================== */
+    /*
+     * NAVIGATION
+     */
 
     function showView(name) {
 
@@ -1662,7 +1506,6 @@ ${error.message}`
             target.classList.remove(
                 "hidden-view"
             );
-
         }
 
 
@@ -1678,7 +1521,6 @@ ${error.message}`
                         item.dataset.view ===
                         name
                     );
-
                 }
             );
 
@@ -1689,15 +1531,9 @@ ${error.message}`
         ) {
 
             renderManagedDatabases();
-
         }
-
     }
 
-
-    /* =========================================================
-       SIDEBAR NAVIGATION
-    ========================================================== */
 
     document
         .querySelectorAll(
@@ -1713,17 +1549,11 @@ ${error.message}`
                         showView(
                             item.dataset.view
                         );
-
                     }
                 );
-
             }
         );
 
-
-    /* =========================================================
-       FEATURE BUTTON NAVIGATION
-    ========================================================== */
 
     document
         .querySelectorAll(
@@ -1740,21 +1570,18 @@ ${error.message}`
                             button.dataset
                                 .viewTarget;
 
-
                         showView(
                             view
                         );
-
                     }
                 );
-
             }
         );
 
 
-    /* =========================================================
-       ASK BUTTON
-    ========================================================== */
+    /*
+     * ASK BUTTON
+     */
 
     if (askBtn) {
 
@@ -1766,13 +1593,12 @@ ${error.message}`
 
             }
         );
-
     }
 
 
-    /* =========================================================
-       ENTER KEY
-    ========================================================== */
+    /*
+     * ENTER KEY
+     */
 
     if (questionInput) {
 
@@ -1789,21 +1615,15 @@ ${error.message}`
                     event.preventDefault();
 
                     askQuestion();
-
                 }
-
             }
         );
-
     }
 
 
-    /* =========================================================
-       SAMPLE QUESTIONS
-       ---------------------------------------------------------
-       Sample questions are intentionally supported only
-       if the HTML contains them.
-    ========================================================== */
+    /*
+     * SAMPLE QUESTIONS
+     */
 
     document
         .querySelectorAll(
@@ -1830,17 +1650,15 @@ ${error.message}`
 
 
                         questionInput.focus();
-
                     }
                 );
-
             }
         );
 
 
-    /* =========================================================
-       RIGHT CHAT SEND
-    ========================================================== */
+    /*
+     * RIGHT CHAT SEND
+     */
 
     if (chatSend) {
 
@@ -1863,7 +1681,6 @@ ${error.message}`
 
                     questionInput.value =
                         value;
-
                 }
 
 
@@ -1871,7 +1688,6 @@ ${error.message}`
 
                     chatInput.value =
                         "";
-
                 }
 
 
@@ -1883,16 +1699,14 @@ ${error.message}`
                 askQuestion(
                     value
                 );
-
             }
         );
-
     }
 
 
-    /* =========================================================
-       CHAT ENTER
-    ========================================================== */
+    /*
+     * CHAT ENTER
+     */
 
     if (chatInput) {
 
@@ -1908,18 +1722,15 @@ ${error.message}`
                     event.preventDefault();
 
                     chatSend?.click();
-
                 }
-
             }
         );
-
     }
 
 
-    /* =========================================================
-       CHAT TABS
-    ========================================================== */
+    /*
+     * CHAT TABS
+     */
 
     document
         .querySelectorAll(
@@ -1974,16 +1785,9 @@ ${error.message}`
                                     </span>
 
                                 </div>
-
                             `;
 
                         } else {
-
-                            /*
-                             * No sample/demo conversation.
-                             * Keep the assistant area empty
-                             * until the user asks something.
-                             */
 
                             chatWindow.innerHTML = `
 
@@ -2004,21 +1808,17 @@ ${error.message}`
                                     </span>
 
                                 </div>
-
                             `;
-
                         }
-
                     }
                 );
-
             }
         );
 
 
-    /* =========================================================
-       DATABASE MODAL
-    ========================================================== */
+    /*
+     * DATABASE MODAL
+     */
 
     const databaseModalElement =
         $("databaseModal");
@@ -2033,7 +1833,6 @@ ${error.message}`
             new bootstrap.Modal(
                 databaseModalElement
             );
-
     }
 
 
@@ -2051,9 +1850,9 @@ ${error.message}`
         );
 
 
-    /* =========================================================
-       DATABASE TYPE
-    ========================================================== */
+    /*
+     * DATABASE TYPE
+     */
 
     document
         .querySelectorAll(
@@ -2101,7 +1900,6 @@ ${error.message}`
 
                             Oracle:
                                 "1521"
-
                         };
 
 
@@ -2116,19 +1914,16 @@ ${error.message}`
                                     selectedDatabaseType
                                 ] ||
                                 "";
-
                         }
-
                     }
                 );
-
             }
         );
 
 
-    /* =========================================================
-       TEST DATABASE CONNECTION
-    ========================================================== */
+    /*
+     * TEST DATABASE CONNECTION
+     */
 
     $("testConnectionBtn")
         ?.addEventListener(
@@ -2169,7 +1964,6 @@ ${error.message}`
                     password:
                         $("connectionPassword")
                             ?.value
-
                 };
 
 
@@ -2187,7 +1981,6 @@ ${error.message}`
                     );
 
                     return;
-
                 }
 
 
@@ -2209,7 +2002,6 @@ ${error.message}`
                         await fetch(
                             "/api/databases/test",
                             {
-
                                 method:
                                     "POST",
 
@@ -2220,7 +2012,6 @@ ${error.message}`
                                     JSON.stringify(
                                         payload
                                     )
-
                             }
                         );
 
@@ -2236,13 +2027,13 @@ ${error.message}`
                             data.message ||
                             "Connection test failed."
                         );
-
                     }
 
 
                     showConnectionMessage(
 
                         data.message ||
+
                         (
                             data.success
                                 ? "Connection successful."
@@ -2252,8 +2043,8 @@ ${error.message}`
                         data.success
                             ? "success"
                             : "error"
-
                     );
+
 
                 } catch (error) {
 
@@ -2262,6 +2053,7 @@ ${error.message}`
                         "error"
                     );
 
+
                 } finally {
 
                     button.disabled =
@@ -2269,19 +2061,20 @@ ${error.message}`
 
 
                     button.innerHTML = `
+
                         <i class="bi bi-plug"></i>
+
                         Test Connection
+
                     `;
-
                 }
-
             }
         );
 
 
-    /* =========================================================
-       SAVE DATABASE
-    ========================================================== */
+    /*
+     * SAVE DATABASE
+     */
 
     $("saveDatabaseBtn")
         ?.addEventListener(
@@ -2327,7 +2120,6 @@ ${error.message}`
                     password:
                         $("connectionPassword")
                             ?.value
-
                 };
 
 
@@ -2346,7 +2138,6 @@ ${error.message}`
                     );
 
                     return;
-
                 }
 
 
@@ -2368,7 +2159,6 @@ ${error.message}`
                         await fetch(
                             "/api/databases",
                             {
-
                                 method:
                                     "POST",
 
@@ -2379,7 +2169,6 @@ ${error.message}`
                                     JSON.stringify(
                                         payload
                                     )
-
                             }
                         );
 
@@ -2394,7 +2183,6 @@ ${error.message}`
                             data.detail ||
                             "Unable to save database."
                         );
-
                     }
 
 
@@ -2416,12 +2204,14 @@ ${error.message}`
                         500
                     );
 
+
                 } catch (error) {
 
                     showConnectionMessage(
                         error.message,
                         "error"
                     );
+
 
                 } finally {
 
@@ -2430,19 +2220,16 @@ ${error.message}`
 
 
                     button.innerHTML = `
+
                         <i class="bi bi-check2"></i>
+
                         Save Database
+
                     `;
-
                 }
-
             }
         );
 
-
-    /* =========================================================
-       DATABASE MESSAGE
-    ========================================================== */
 
     function showConnectionMessage(
         message,
@@ -2464,13 +2251,12 @@ ${error.message}`
 
         box.className =
             `connection-message ${type}`;
-
     }
 
 
-    /* =========================================================
-       SOURCE MODAL
-    ========================================================== */
+    /*
+     * SOURCE MODAL
+     */
 
     const sourceModalElement =
         $("sourceModal");
@@ -2485,7 +2271,6 @@ ${error.message}`
             new bootstrap.Modal(
                 sourceModalElement
             );
-
     }
 
 
@@ -2510,9 +2295,9 @@ ${error.message}`
         );
 
 
-    /* =========================================================
-       SOURCE TYPE
-    ========================================================== */
+    /*
+     * SOURCE TYPE
+     */
 
     document
         .querySelectorAll(
@@ -2541,17 +2326,15 @@ ${error.message}`
                         button.classList.add(
                             "selected"
                         );
-
                     }
                 );
-
             }
         );
 
 
-    /* =========================================================
-       SAVE SOURCE
-    ========================================================== */
+    /*
+     * SAVE SOURCE
+     */
 
     $("saveSourceButton")
         ?.addEventListener(
@@ -2588,7 +2371,6 @@ ${error.message}`
 
 
                     return;
-
                 }
 
 
@@ -2608,14 +2390,13 @@ ${error.message}`
                     },
                     900
                 );
-
             }
         );
 
 
-    /* =========================================================
-       VIEW DATABASE SCHEMA
-    ========================================================== */
+    /*
+     * VIEW DATABASE SCHEMA
+     */
 
     $("viewSchemaBtn")
         ?.addEventListener(
@@ -2629,7 +2410,6 @@ ${error.message}`
                     );
 
                     return;
-
                 }
 
 
@@ -2655,7 +2435,6 @@ ${error.message}`
                             data.detail ||
                             "Unable to load schema."
                         );
-
                     }
 
 
@@ -2669,7 +2448,6 @@ ${error.message}`
                         );
 
                         return;
-
                     }
 
 
@@ -2693,10 +2471,12 @@ ${error.message}`
 
 
                                     return `
-TABLE: ${table.table_name}
-${columns}
-                                    `.trim();
 
+TABLE: ${table.table_name}
+
+${columns}
+
+                                    `.trim();
                                 }
                             )
                             .join(
@@ -2708,6 +2488,7 @@ ${columns}
                         `DATABASE: ${selectedDatabase.name}\n\n${text}`
                     );
 
+
                 } catch (error) {
 
                     showAnswer(
@@ -2715,16 +2496,14 @@ ${columns}
 
 ${error.message}`
                     );
-
                 }
-
             }
         );
 
 
-    /* =========================================================
-       LANGUAGE SYNCHRONIZATION
-    ========================================================== */
+    /*
+     * LANGUAGE SYNCHRONIZATION
+     */
 
     [
         "topLanguage",
@@ -2743,44 +2522,33 @@ ${error.message}`
 
 
                             if (
-                                $("topLanguage")
+                                topLanguage
                             ) {
 
-                                $("topLanguage")
-                                    .value =
+                                topLanguage.value =
                                     value;
-
                             }
 
 
                             if (
-                                $("assistantLanguage")
+                                languageSelect
                             ) {
 
-                                $("assistantLanguage")
-                                    .value =
+                                languageSelect.value =
                                     value;
-
                             }
 
 
-                            /*
-                             * Reload voice preference when
-                             * language changes.
-                             */
-
                             loadVoices();
-
                         }
                     );
-
             }
         );
 
 
-    /* =========================================================
-       ATTACH BUTTON
-    ========================================================== */
+    /*
+     * ATTACH BUTTON
+     */
 
     $("attachButton")
         ?.addEventListener(
@@ -2794,14 +2562,13 @@ ${error.message}`
 
                 $("documentSearch")
                     ?.focus();
-
             }
         );
 
 
-    /* =========================================================
-       DOCUMENT SEARCH
-    ========================================================== */
+    /*
+     * DOCUMENT SEARCH
+     */
 
     $("documentSearch")
         ?.addEventListener(
@@ -2828,17 +2595,15 @@ ${error.message}`
                                     )
                                         ? ""
                                         : "none";
-
                         }
                     );
-
             }
         );
 
 
-    /* =========================================================
-       SETTINGS LANGUAGE
-    ========================================================== */
+    /*
+     * SETTINGS LANGUAGE
+     */
 
     $("settingsLanguage")
         ?.addEventListener(
@@ -2859,7 +2624,6 @@ ${error.message}`
 
                     Tamil:
                         "ta-IN"
-
                 };
 
 
@@ -2869,41 +2633,115 @@ ${error.message}`
 
 
                 if (
-                    $("topLanguage")
+                    topLanguage
                 ) {
 
-                    $("topLanguage")
-                        .value =
+                    topLanguage.value =
                         language;
-
                 }
 
 
                 if (
-                    $("assistantLanguage")
+                    languageSelect
                 ) {
 
-                    $("assistantLanguage")
-                        .value =
+                    languageSelect.value =
                         language;
-
                 }
 
 
-                /*
-                 * Make sure speech uses the newly
-                 * selected language.
-                 */
-
                 loadVoices();
-
             }
         );
 
 
-    /* =========================================================
-       KEYBOARD SHORTCUT
-    ========================================================== */
+    /*
+     * VOICE RESPONSE SETTING
+     *
+     * This connects the Settings checkbox
+     * with the volume button on the AI employee.
+     */
+
+    if (voiceResponseSetting) {
+
+        voiceResponseSetting.addEventListener(
+            "change",
+            () => {
+
+                if (
+                    voiceResponseSetting.checked
+                ) {
+
+                    if (speakToggle) {
+
+                        speakToggle.innerHTML =
+                            '<i class="bi bi-volume-up"></i>';
+
+                        speakToggle.classList.remove(
+                            "muted"
+                        );
+                    }
+
+                } else {
+
+                    if (
+                        window.speechSynthesis
+                    ) {
+
+                        window.speechSynthesis.cancel();
+                    }
+
+
+                    stopSpeakingVisual();
+
+
+                    if (speakToggle) {
+
+                        speakToggle.innerHTML =
+                            '<i class="bi bi-volume-mute"></i>';
+
+                        speakToggle.classList.add(
+                            "muted"
+                        );
+                    }
+                }
+            }
+        );
+    }
+
+
+    /*
+     * TOP VOLUME BUTTON
+     */
+
+    if (speakToggle) {
+
+        speakToggle.addEventListener(
+            "click",
+            () => {
+
+                if (!voiceResponseSetting) {
+                    return;
+                }
+
+
+                voiceResponseSetting.checked =
+                    !voiceResponseSetting.checked;
+
+
+                voiceResponseSetting.dispatchEvent(
+                    new Event(
+                        "change"
+                    )
+                );
+            }
+        );
+    }
+
+
+    /*
+     * KEYBOARD SHORTCUT
+     */
 
     document.addEventListener(
         "keydown",
@@ -2914,6 +2752,7 @@ ${error.message}`
                     event.ctrlKey ||
                     event.metaKey
                 ) &&
+
                 event.key.toLowerCase() ===
                 "k"
             ) {
@@ -2921,24 +2760,21 @@ ${error.message}`
                 event.preventDefault();
 
                 questionInput?.focus();
-
             }
-
         }
     );
 
 
-    /* =========================================================
-       INITIAL LOAD
-    ========================================================== */
+    /*
+     * INITIAL LOAD
+     */
 
     loadDatabases();
 
 
     /*
-     * Load speech voices again shortly after startup.
-     * Chrome/Edge sometimes populate the voice list
-     * after DOMContentLoaded.
+     * Chrome / Edge sometimes populate
+     * speech voices asynchronously.
      */
 
     setTimeout(
