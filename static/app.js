@@ -1,79 +1,47 @@
-
 document.addEventListener("DOMContentLoaded", () => {
+
+    "use strict";
+
+
+    /* =========================================================
+       HELPERS
+    ========================================================== */
+
+    const $ = (id) => document.getElementById(id);
+
 
     /* =========================================================
        ELEMENTS
     ========================================================== */
 
-    const questionInput =
-        document.getElementById("question");
+    const questionInput = $("question");
+    const askBtn = $("askBtn");
 
-    const askBtn =
-        document.getElementById("askBtn");
+    const answerBox = $("answer");
 
-    const answerBox =
-        document.getElementById("answer");
+    const loading = $("loading");
 
-    const loading =
-        document.getElementById("loading");
+    const sqlSection = $("sqlSection");
+    const sqlBox = $("sqlBox");
 
-    const sqlBox =
-        document.getElementById("sqlBox");
+    const tableSection = $("tableSection");
+    const tableHead = $("tableHead");
+    const tableBody = $("tableBody");
 
-    const sqlSection =
-        document.getElementById("sqlSection");
+    const databaseSelect = $("databaseSelect");
 
-    const tableHead =
-        document.getElementById("tableHead");
+    const databaseCount = $("databaseCount");
 
-    const tableBody =
-        document.getElementById("tableBody");
+    const databaseManagementList =
+        $("databaseManagementList");
 
-    const tableSection =
-        document.getElementById("tableSection");
-
-    const voiceBtn =
-        document.getElementById("voiceBtn");
-
-    const inlineVoiceBtn =
-        document.getElementById("inlineVoiceBtn");
-
-    const languageSelect =
-        document.getElementById("languageSelect");
-
-    const voiceStatus =
-        document.getElementById("voiceStatus");
-
-    const databaseList =
-        document.getElementById("databaseList");
-
-    const selectedDatabaseName =
-        document.getElementById("selectedDatabaseName");
-
-    const detailDatabaseName =
-        document.getElementById("detailDatabaseName");
-
-    const detailDatabaseType =
-        document.getElementById("detailDatabaseType");
-
-    const detailHost =
-        document.getElementById("detailHost");
-
-    const detailPort =
-        document.getElementById("detailPort");
-
-    const detailDatabase =
-        document.getElementById("detailDatabase");
-
-    const detailUsername =
-        document.getElementById("detailUsername");
-
-    const detailDatabaseLogo =
-        document.querySelector(".large-db-logo");
+    const chatWindow = $("chatWindow");
+    const chatInput = $("chatInput");
+    const chatSend = $("chatSend");
 
 
     /* =========================================================
-       DATABASE STATE
+       APPLICATION STATE
     ========================================================== */
 
     let databases = [];
@@ -81,6 +49,14 @@ document.addEventListener("DOMContentLoaded", () => {
     let selectedDatabase = null;
 
     let selectedDatabaseType = "PostgreSQL";
+
+    let recognition = null;
+
+    let voices = [];
+
+    let sourceModal = null;
+
+    let databaseModal = null;
 
 
     /* =========================================================
@@ -93,437 +69,132 @@ document.addEventListener("DOMContentLoaded", () => {
             "Content-Type": "application/json"
         };
 
+
         const token =
             localStorage.getItem("token");
 
+
         if (token) {
 
-            headers["Authorization"] =
+            headers.Authorization =
                 `Bearer ${token}`;
 
         }
 
+
         return headers;
+
     }
 
 
     /* =========================================================
-       DATABASE ICON
+       HTML ESCAPE
     ========================================================== */
 
-    function getDatabaseLogoClass(type) {
+    function escapeHtml(value) {
 
-        const normalized =
-            String(type || "")
-                .toLowerCase();
+        return String(value ?? "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
 
-        if (normalized.includes("postgres")) {
-            return "postgres-logo";
-        }
-
-        if (normalized.includes("mysql")) {
-            return "mysql-logo";
-        }
-
-        if (
-            normalized.includes("sql server") ||
-            normalized.includes("sqlserver")
-        ) {
-            return "sqlserver-logo";
-        }
-
-        if (normalized.includes("oracle")) {
-            return "oracle-logo";
-        }
-
-        if (normalized.includes("sqlite")) {
-            return "sqlite-logo";
-        }
-
-        return "postgres-logo";
     }
 
 
     /* =========================================================
-       DATABASE DISPLAY DATA
+       DATABASE NORMALIZATION
     ========================================================== */
 
-    function normalizeDatabase(database) {
+    function normalizeDatabase(db) {
 
         return {
-            id: database.id,
-            name: database.name,
-            type: database.db_type,
-            host: database.host,
-            port: database.port,
-            database: database.database_name,
-            username: database.username
+
+            id:
+                db.id,
+
+            name:
+                db.name ||
+                "Unnamed database",
+
+            type:
+                db.db_type ||
+                db.type ||
+                "Database",
+
+            host:
+                db.host ||
+                "",
+
+            port:
+                db.port ||
+                "",
+
+            database:
+                db.database_name ||
+                db.database ||
+                "",
+
+            username:
+                db.username ||
+                ""
+
         };
 
     }
 
 
     /* =========================================================
-       UPDATE SELECTED DATABASE DETAILS
+       DATABASE LOGO
     ========================================================== */
 
-    function updateDatabaseDetails() {
+    function logoClass(type) {
 
-        if (!selectedDatabase) {
+        const t =
+            String(type || "")
+                .toLowerCase();
 
-            if (selectedDatabaseName) {
-                selectedDatabaseName.innerText =
-                    "No database selected";
-            }
 
-            if (detailDatabaseName) {
-                detailDatabaseName.innerText =
-                    "No database selected";
-            }
-
-            if (detailDatabaseType) {
-                detailDatabaseType.innerText =
-                    "—";
-            }
-
-            if (detailHost) {
-                detailHost.innerText =
-                    "—";
-            }
-
-            if (detailPort) {
-                detailPort.innerText =
-                    "—";
-            }
-
-            if (detailDatabase) {
-                detailDatabase.innerText =
-                    "—";
-            }
-
-            if (detailUsername) {
-                detailUsername.innerText =
-                    "—";
-            }
-
-            if (questionInput) {
-                questionInput.placeholder =
-                    "Select a database and ask a question...";
-            }
-
-            return;
+        if (t.includes("mysql")) {
+            return "mysql";
         }
-
-
-        if (selectedDatabaseName) {
-
-            selectedDatabaseName.innerText =
-                selectedDatabase.name;
-
-        }
-
-
-        if (detailDatabaseName) {
-
-            detailDatabaseName.innerText =
-                selectedDatabase.name;
-
-        }
-
-
-        if (detailDatabaseType) {
-
-            detailDatabaseType.innerText =
-                selectedDatabase.type;
-
-        }
-
-
-        if (detailHost) {
-
-            detailHost.innerText =
-                selectedDatabase.host || "—";
-
-        }
-
-
-        if (detailPort) {
-
-            detailPort.innerText =
-                selectedDatabase.port || "—";
-
-        }
-
-
-        if (detailDatabase) {
-
-            detailDatabase.innerText =
-                selectedDatabase.database || "—";
-
-        }
-
-
-        if (detailUsername) {
-
-            detailUsername.innerText =
-                selectedDatabase.username || "—";
-
-        }
-
-
-        if (questionInput) {
-
-            questionInput.placeholder =
-                `Ask anything about ${selectedDatabase.name}...`;
-
-        }
-
-
-        if (detailDatabaseLogo) {
-
-            detailDatabaseLogo.classList.remove(
-                "postgres-logo",
-                "mysql-logo",
-                "sqlserver-logo",
-                "oracle-logo",
-                "sqlite-logo"
-            );
-
-            detailDatabaseLogo.classList.add(
-                getDatabaseLogoClass(
-                    selectedDatabase.type
-                )
-            );
-
-        }
-
-    }
-
-
-    /* =========================================================
-       SELECT DATABASE
-    ========================================================== */
-
-    function selectDatabase(database) {
-
-        if (!database) {
-            return;
-        }
-
-        selectedDatabase = database;
-
-        document
-            .querySelectorAll(".database-item")
-            .forEach(item => {
-
-                item.classList.remove(
-                    "selected"
-                );
-
-                if (
-                    String(item.dataset.dbId) ===
-                    String(database.id)
-                ) {
-
-                    item.classList.add(
-                        "selected"
-                    );
-
-                }
-
-            });
-
-        updateDatabaseDetails();
-
-        console.log(
-            "Selected database:",
-            selectedDatabase
-        );
-
-    }
-
-
-    /* =========================================================
-       RENDER DATABASE LIST
-    ========================================================== */
-
-    function renderDatabases() {
-
-        if (!databaseList) {
-            return;
-        }
-
-        databaseList.innerHTML = "";
 
 
         if (
-            !databases ||
-            databases.length === 0
+            t.includes("sql server") ||
+            t.includes("sqlserver")
         ) {
-
-            databaseList.innerHTML = `
-                <div class="database-empty">
-                    <i class="bi bi-database"></i>
-                    <strong>No databases connected</strong>
-                    <span>Click "Add Database" to connect one.</span>
-                </div>
-            `;
-
-            selectedDatabase = null;
-
-            updateDatabaseDetails();
-
-            return;
+            return "sqlserver";
         }
 
 
-        databases.forEach(database => {
-
-            const item =
-                document.createElement("div");
-
-            item.className =
-                "database-item";
-
-
-            const logoClass =
-                getDatabaseLogoClass(
-                    database.type
-                );
-
-
-            item.dataset.dbId =
-                database.id;
-
-            item.dataset.dbName =
-                database.name;
-
-            item.dataset.dbType =
-                database.type || "";
-
-            item.dataset.dbHost =
-                database.host || "";
-
-            item.dataset.dbPort =
-                database.port || "";
-
-            item.dataset.dbDatabase =
-                database.database || "";
-
-            item.dataset.dbUsername =
-                database.username || "";
-
-
-            item.innerHTML = `
-
-                <div class="database-logo ${logoClass}">
-                    <i class="bi bi-database-fill"></i>
-                </div>
-
-                <div class="database-info">
-
-                    <strong>
-                        ${escapeHtml(database.name)}
-                    </strong>
-
-                    <span>
-                        ${escapeHtml(database.type || "Database")}
-                    </span>
-
-                </div>
-
-                <div class="database-status connected">
-                    <span></span>
-                    Connected
-                </div>
-
-                <button
-                    type="button"
-                    class="more-button"
-                    title="Database options"
-                >
-                    <i class="bi bi-three-dots"></i>
-                </button>
-
-            `;
-
-
-            item.addEventListener(
-                "click",
-                event => {
-
-                    if (
-                        event.target.closest(
-                            ".more-button"
-                        )
-                    ) {
-                        return;
-                    }
-
-                    selectDatabase(database);
-
-                }
-            );
-
-
-            databaseList.appendChild(item);
-
-        });
-
-
-        /*
-         * Restore the previously selected database
-         * if it still exists.
-         */
-
-        if (selectedDatabase) {
-
-            const existing =
-                databases.find(
-                    database =>
-                        String(database.id) ===
-                        String(selectedDatabase.id)
-                );
-
-            if (existing) {
-
-                selectDatabase(
-                    existing
-                );
-
-                return;
-            }
-
+        if (t.includes("oracle")) {
+            return "oracle";
         }
 
 
-        /*
-         * Otherwise select the first database.
-         */
-
-        selectDatabase(
-            databases[0]
-        );
+        return "postgres";
 
     }
 
 
     /* =========================================================
-       LOAD DATABASES FROM BACKEND
+       LOAD DATABASES
     ========================================================== */
 
     async function loadDatabases() {
 
-        if (databaseList) {
-
-            databaseList.innerHTML = `
-                <div class="database-empty">
-                    <div class="spinner-border spinner-border-sm"></div>
-                    <span>Loading databases...</span>
-                </div>
-            `;
-
+        if (!databaseSelect) {
+            return;
         }
+
+
+        databaseSelect.innerHTML = `
+            <option value="">
+                Loading databases...
+            </option>
+        `;
 
 
         try {
@@ -538,49 +209,97 @@ document.addEventListener("DOMContentLoaded", () => {
                 );
 
 
+            const data =
+                await response.json();
+
+
             if (!response.ok) {
 
-                let message =
-                    "Unable to load databases.";
-
-                try {
-
-                    const errorData =
-                        await response.json();
-
-                    message =
-                        errorData.detail ||
-                        message;
-
-                } catch (_) {}
-
                 throw new Error(
-                    message
+                    data.detail ||
+                    "Unable to load databases."
                 );
 
             }
 
 
-            const data =
-                await response.json();
-
-
             databases =
                 Array.isArray(data)
-                    ? data.map(
-                        normalizeDatabase
-                    )
+                    ? data.map(normalizeDatabase)
                     : [];
 
 
-            console.log(
-                "Loaded databases:",
-                databases
+            if (databaseCount) {
+
+                databaseCount.textContent =
+                    databases.length;
+
+            }
+
+
+            databaseSelect.innerHTML = "";
+
+
+            if (!databases.length) {
+
+                databaseSelect.innerHTML = `
+                    <option value="">
+                        No databases connected
+                    </option>
+                `;
+
+
+                selectedDatabase = null;
+
+                renderManagedDatabases();
+
+                return;
+
+            }
+
+
+            databases.forEach(
+                db => {
+
+                    const option =
+                        document.createElement(
+                            "option"
+                        );
+
+
+                    option.value =
+                        db.id;
+
+
+                    option.textContent =
+                        `${db.name} · ${db.type}`;
+
+
+                    databaseSelect.appendChild(
+                        option
+                    );
+
+                }
             );
 
 
-            renderDatabases();
+            const previous =
+                databases.find(
+                    db =>
+                        String(db.id) ===
+                        String(
+                            selectedDatabase?.id
+                        )
+                );
 
+
+            selectDatabase(
+                previous ||
+                databases[0]
+            );
+
+
+            renderManagedDatabases();
 
         } catch (error) {
 
@@ -590,19 +309,22 @@ document.addEventListener("DOMContentLoaded", () => {
             );
 
 
-            if (databaseList) {
+            databaseSelect.innerHTML = `
+                <option value="">
+                    Unable to load databases
+                </option>
+            `;
 
-                databaseList.innerHTML = `
-                    <div class="database-empty">
-                        <i class="bi bi-exclamation-triangle"></i>
-                        <strong>Unable to load databases</strong>
-                        <span>
-                            ${escapeHtml(error.message)}
-                        </span>
-                    </div>
-                `;
+
+            if (databaseCount) {
+
+                databaseCount.textContent =
+                    "0";
 
             }
+
+
+            renderManagedDatabases();
 
         }
 
@@ -610,329 +332,204 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
     /* =========================================================
-       INITIAL DATABASE LOAD
+       SELECT DATABASE
     ========================================================== */
 
-    loadDatabases();
+    function selectDatabase(db) {
 
-
-    /* =========================================================
-       VOICES
-    ========================================================== */
-
-    let voices = [];
-
-
-    function loadVoices() {
-
-        if (!window.speechSynthesis) {
+        if (!db) {
             return;
         }
 
-        voices =
-            window.speechSynthesis.getVoices();
 
-        console.log(
-            "Available Voices:",
-            voices
-        );
+        selectedDatabase =
+            db;
 
-    }
 
+        if (databaseSelect) {
 
-    loadVoices();
-
-
-    if (window.speechSynthesis) {
-
-        window.speechSynthesis.onvoiceschanged =
-            loadVoices;
-
-    }
-
-
-    /* =========================================================
-       SAMPLE QUESTIONS
-    ========================================================== */
-
-    document
-        .querySelectorAll(".sample-question")
-        .forEach(button => {
-
-            button.addEventListener(
-                "click",
-                () => {
-
-                    if (!questionInput) {
-                        return;
-                    }
-
-                    questionInput.value =
-                        button.innerText;
-
-                    questionInput.focus();
-
-                }
-            );
-
-        });
-
-
-    /* =========================================================
-       ASK BUTTON
-    ========================================================== */
-
-    if (askBtn) {
-
-        askBtn.addEventListener(
-            "click",
-            askQuestion
-        );
-
-    }
-
-
-    /* =========================================================
-       ENTER KEY
-    ========================================================== */
-
-    if (questionInput) {
-
-        questionInput.addEventListener(
-            "keydown",
-            event => {
-
-                if (
-                    event.key === "Enter" &&
-                    !event.shiftKey
-                ) {
-
-                    event.preventDefault();
-
-                    askQuestion();
-
-                }
-
-            }
-        );
-
-    }
-
-
-    /* =========================================================
-       SPEECH RECOGNITION
-    ========================================================== */
-
-    const SpeechRecognition =
-        window.SpeechRecognition ||
-        window.webkitSpeechRecognition;
-
-
-    let recognition = null;
-
-
-    if (SpeechRecognition) {
-
-        recognition =
-            new SpeechRecognition();
-
-        recognition.continuous = false;
-
-        recognition.interimResults = false;
-
-
-        function startVoiceRecognition() {
-
-            if (!recognition) {
-                return;
-            }
-
-
-            const language =
-                languageSelect?.value ||
-                "en-US";
-
-
-            recognition.lang =
-                language;
-
-
-            if (voiceBtn) {
-
-                voiceBtn.classList.add(
-                    "listening"
-                );
-
-            }
-
-
-            if (inlineVoiceBtn) {
-
-                inlineVoiceBtn.classList.add(
-                    "listening"
-                );
-
-            }
-
-
-            if (voiceStatus) {
-
-                voiceStatus.innerText =
-                    "Listening...";
-
-            }
-
-
-            try {
-
-                recognition.start();
-
-            } catch (error) {
-
-                console.log(
-                    "Recognition already running."
-                );
-
-            }
+            databaseSelect.value =
+                String(db.id);
 
         }
 
 
-        if (voiceBtn) {
-
-            voiceBtn.addEventListener(
-                "click",
-                startVoiceRecognition
-            );
-
-        }
+        const label =
+            $("selectedSourceLabel");
 
 
-        if (inlineVoiceBtn) {
+        if (label) {
 
-            inlineVoiceBtn.addEventListener(
-                "click",
-                startVoiceRecognition
-            );
+            label.textContent =
+                `AI is connected to ${db.name} and can query its business data.`;
 
         }
 
-
-        recognition.onresult =
-            event => {
-
-                const transcript =
-                    event.results[0][0]
-                        .transcript;
+    }
 
 
-                if (questionInput) {
+    /* =========================================================
+       DATABASE SELECT CHANGE
+    ========================================================== */
 
-                    questionInput.value =
-                        transcript;
+    if (databaseSelect) {
 
-                }
-
-
-                if (voiceStatus) {
-
-                    voiceStatus.innerText =
-                        "Question received";
-
-                }
-
-
-                askQuestion();
-
-            };
-
-
-        recognition.onend =
+        databaseSelect.addEventListener(
+            "change",
             () => {
 
-                if (voiceBtn) {
-
-                    voiceBtn.classList.remove(
-                        "listening"
+                const db =
+                    databases.find(
+                        item =>
+                            String(item.id) ===
+                            String(
+                                databaseSelect.value
+                            )
                     );
 
-                }
+
+                selectDatabase(db);
+
+            }
+        );
+
+    }
 
 
-                if (inlineVoiceBtn) {
+    /* =========================================================
+       MANAGED DATABASES
+    ========================================================== */
 
-                    inlineVoiceBtn.classList.remove(
-                        "listening"
-                    );
+    function renderManagedDatabases() {
 
-                }
-
-
-                if (voiceStatus) {
-
-                    voiceStatus.innerText =
-                        "Click to speak";
-
-                }
-
-            };
+        if (!databaseManagementList) {
+            return;
+        }
 
 
-        recognition.onerror =
-            error => {
+        if (!databases.length) {
 
-                console.error(
-                    "Speech recognition error:",
-                    error
-                );
+            databaseManagementList.innerHTML = `
 
+                <div class="empty-state">
 
-                if (voiceBtn) {
+                    <i class="bi bi-database"></i>
 
-                    voiceBtn.classList.remove(
-                        "listening"
-                    );
+                    <strong>
+                        No database connections
+                    </strong>
 
-                }
+                    <span>
+                        Add a database to make SQL data
+                        available to the AI employee.
+                    </span>
 
+                </div>
 
-                if (inlineVoiceBtn) {
+            `;
 
-                    inlineVoiceBtn.classList.remove(
-                        "listening"
-                    );
-
-                }
-
-
-                if (voiceStatus) {
-
-                    voiceStatus.innerText =
-                        "Voice recognition failed";
-
-
-                    setTimeout(
-                        () => {
-
-                            voiceStatus.innerText =
-                                "Click to speak";
-
-                        },
-                        2500
-                    );
-
-                }
-
-            };
-
-    } else {
-
-        if (voiceBtn) {
-
-            voiceBtn.title =
-                "Voice recognition is not supported by this browser";
+            return;
 
         }
+
+
+        databaseManagementList.innerHTML =
+            databases.map(
+                db => `
+
+                <div class="managed-db">
+
+                    <span class="db-logo">
+
+                        <i class="bi bi-database-fill"></i>
+
+                    </span>
+
+
+                    <div>
+
+                        <strong>
+                            ${escapeHtml(db.name)}
+                        </strong>
+
+                        <small>
+                            ${escapeHtml(
+                                db.type
+                            )}
+
+                            ·
+
+                            ${escapeHtml(
+                                db.host ||
+                                "host not shown"
+                            )}
+
+                        </small>
+
+                    </div>
+
+
+                    <span class="status-tag ready">
+                        Connected
+                    </span>
+
+
+                    <button
+                        class="small-button manage-db-select"
+                        data-id="${escapeHtml(db.id)}"
+                        type="button"
+                    >
+                        Use
+                    </button>
+
+                </div>
+
+            `
+            ).join("");
+
+
+        document
+            .querySelectorAll(
+                ".manage-db-select"
+            )
+            .forEach(
+                button => {
+
+                    button.addEventListener(
+                        "click",
+                        () => {
+
+                            const db =
+                                databases.find(
+                                    item =>
+                                        String(
+                                            item.id
+                                        ) ===
+                                        String(
+                                            button.dataset.id
+                                        )
+                                );
+
+
+                            selectDatabase(db);
+
+
+                            showView(
+                                "dashboard"
+                            );
+
+
+                            $("askSection")
+                                ?.scrollIntoView({
+                                    behavior:
+                                        "smooth"
+                                });
+
+                        }
+                    );
+
+                }
+            );
 
     }
 
@@ -941,15 +538,16 @@ document.addEventListener("DOMContentLoaded", () => {
        ASK QUESTION
     ========================================================== */
 
-    async function askQuestion() {
-
-        if (!questionInput) {
-            return;
-        }
-
+    async function askQuestion(
+        questionOverride = null
+    ) {
 
         const question =
-            questionInput.value.trim();
+            (
+                questionOverride ??
+                questionInput?.value ??
+                ""
+            ).trim();
 
 
         if (!question) {
@@ -957,8 +555,6 @@ document.addEventListener("DOMContentLoaded", () => {
             showAnswer(
                 "Please enter a question."
             );
-
-            questionInput.focus();
 
             return;
 
@@ -968,7 +564,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!selectedDatabase) {
 
             showAnswer(
-                "Please select a database first."
+                "Please select a connected database first."
             );
 
             return;
@@ -976,148 +572,119 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
 
-        resetUI();
+        resetResults();
 
 
-        if (loading) {
-
-            loading.classList.remove(
-                "d-none"
-            );
-
-        }
+        loading?.classList.remove(
+            "d-none"
+        );
 
 
         if (askBtn) {
 
-            askBtn.disabled = true;
+            askBtn.disabled =
+                true;
 
-            askBtn.innerHTML =
-                '<span class="spinner-border spinner-border-sm me-1"></span> Thinking...';
+
+            askBtn.innerHTML = `
+                <span
+                    class="spinner-border
+                    spinner-border-sm"
+                ></span>
+            `;
 
         }
 
 
+        const requestBody = {
+
+            question:
+                question,
+
+            user_id:
+                "default_user",
+
+            language:
+                $("topLanguage")?.value ||
+                "en-US",
+
+            database_id:
+                Number(
+                    selectedDatabase.id
+                )
+
+        };
+
+
         try {
-
-            /*
-             * IMPORTANT:
-             *
-             * The backend QuestionRequest expects:
-             *
-             * question
-             * language
-             * database_id
-             *
-             * We now send the correct database_id.
-             */
-
-            const requestBody = {
-
-                question:
-                    question,
-
-                user_id:
-                    "default_user",
-
-                language:
-                    languageSelect?.value ||
-                    "en-US",
-
-                database_id:
-                    Number(
-                        selectedDatabase.id
-                    )
-
-            };
-
-
-            console.log(
-                "Sending AI request:",
-                requestBody
-            );
-
 
             const response =
                 await fetch(
                     "/ask",
                     {
                         method: "POST",
-                        headers: getHeaders(),
+
+                        headers:
+                            getHeaders(),
+
                         body:
                             JSON.stringify(
                                 requestBody
                             )
+
                     }
                 );
-
-
-            if (!response.ok) {
-
-                let errorMessage =
-                    "Server Error";
-
-
-                try {
-
-                    const errorData =
-                        await response.json();
-
-                    errorMessage =
-                        errorData.detail ||
-                        errorMessage;
-
-                } catch (_) {}
-
-
-                throw new Error(
-                    errorMessage
-                );
-
-            }
 
 
             const data =
                 await response.json();
 
 
-            console.log(
-                "AI response:",
-                data
-            );
+            if (!response.ok) {
+
+                throw new Error(
+                    data.detail ||
+                    "Unable to get an answer."
+                );
+
+            }
 
 
-            const answer =
+            showAnswer(
                 data.answer ||
-                "No response received from AI.";
-
-
-            typeAnswer(
-                answer
-            );
-
-
-            speakAnswer(
-                answer
+                "No response received from AI."
             );
 
 
             displaySQL(
-                data.sql || ""
+                data.sql ||
+                ""
             );
 
 
             displayTable(
-                data.rows || []
+                data.rows ||
+                []
             );
 
 
-            addRecentQuery(
+            addChatMessage(
                 question,
-                selectedDatabase.name,
-                selectedDatabase.type
+                "user"
             );
 
+
+            addChatMessage(
+                data.answer ||
+                "No answer received.",
+                "assistant"
+            );
+
+
+            speakAnswer(
+                data.answer ||
+                ""
+            );
 
         } catch (error) {
 
@@ -1128,26 +695,33 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
             showAnswer(
-                `Unable to get an answer.\n\n${error.message}`
+                `Unable to get an answer.
+
+${error.message}`
+            );
+
+
+            addChatMessage(
+                error.message,
+                "assistant"
             );
 
         } finally {
 
-            if (loading) {
-
-                loading.classList.add(
-                    "d-none"
-                );
-
-            }
+            loading?.classList.add(
+                "d-none"
+            );
 
 
             if (askBtn) {
 
-                askBtn.disabled = false;
+                askBtn.disabled =
+                    false;
 
-                askBtn.innerHTML =
-                    '<i class="bi bi-send-fill"></i>';
+
+                askBtn.innerHTML = `
+                    <i class="bi bi-send-fill"></i>
+                `;
 
             }
 
@@ -1157,7 +731,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
     /* =========================================================
-       ANSWER
+       SHOW ANSWER
     ========================================================== */
 
     function showAnswer(text) {
@@ -1166,212 +740,57 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        answerBox.innerText =
+
+        answerBox.textContent =
             text;
 
     }
 
 
-    function typeAnswer(text) {
-
-        if (!answerBox) {
-            return;
-        }
-
-
-        answerBox.innerText = "";
-
-        let index = 0;
-
-
-        function type() {
-
-            if (
-                index <
-                text.length
-            ) {
-
-                answerBox.innerText +=
-                    text.charAt(index);
-
-                index++;
-
-                setTimeout(
-                    type,
-                    10
-                );
-
-            }
-
-        }
-
-
-        type();
-
-    }
-
-
     /* =========================================================
-       TEXT TO SPEECH
+       RESET RESULT AREA
     ========================================================== */
 
-    function speakAnswer(text) {
-
-        if (!window.speechSynthesis) {
-
-            console.log(
-                "Speech synthesis not supported."
-            );
-
-            return;
-
-        }
-
-
-        window.speechSynthesis.cancel();
-
-
-        const utterance =
-            new SpeechSynthesisUtterance(
-                text
-            );
-
-
-        const language =
-            languageSelect?.value ||
-            "en-US";
-
-
-        utterance.lang =
-            language;
-
-        utterance.rate =
-            0.95;
-
-        utterance.pitch =
-            1;
-
-        utterance.volume =
-            1;
-
-
-        let selectedVoice =
-            null;
-
-
-        if (language === "ta-IN") {
-
-            selectedVoice =
-                voices.find(
-                    voice =>
-                        voice.lang
-                            .toLowerCase()
-                            .includes("ta") ||
-                        voice.name
-                            .toLowerCase()
-                            .includes("tamil")
-                );
-
-        } else if (
-            language === "hi-IN"
-        ) {
-
-            selectedVoice =
-                voices.find(
-                    voice =>
-                        voice.lang
-                            .toLowerCase()
-                            .includes("hi") ||
-                        voice.name
-                            .toLowerCase()
-                            .includes("hindi")
-                );
-
-        } else {
-
-            selectedVoice =
-                voices.find(
-                    voice =>
-                        voice.lang
-                            .toLowerCase()
-                            .startsWith("en")
-                );
-
-        }
-
-
-        if (selectedVoice) {
-
-            utterance.voice =
-                selectedVoice;
-
-        }
-
-
-        setTimeout(
-            () => {
-
-                window.speechSynthesis
-                    .speak(
-                        utterance
-                    );
-
-            },
-            200
-        );
-
-    }
-
-
-    /* =========================================================
-       RESET UI
-    ========================================================== */
-
-    function resetUI() {
+    function resetResults() {
 
         if (answerBox) {
 
-            answerBox.innerText =
+            answerBox.textContent =
                 "Analyzing your business data...";
 
         }
 
 
-        if (sqlSection) {
-
-            sqlSection.classList.add(
-                "d-none"
-            );
-
-        }
+        sqlSection?.classList.add(
+            "d-none"
+        );
 
 
-        if (tableSection) {
-
-            tableSection.classList.add(
-                "d-none"
-            );
-
-        }
+        tableSection?.classList.add(
+            "d-none"
+        );
 
 
         if (sqlBox) {
 
-            sqlBox.textContent = "";
+            sqlBox.textContent =
+                "";
 
         }
 
 
         if (tableHead) {
 
-            tableHead.innerHTML = "";
+            tableHead.innerHTML =
+                "";
 
         }
 
 
         if (tableBody) {
 
-            tableBody.innerHTML = "";
+            tableBody.innerHTML =
+                "";
 
         }
 
@@ -1407,9 +826,16 @@ document.addEventListener("DOMContentLoaded", () => {
             sql;
 
 
-        sqlSection.classList.remove(
-            "d-none"
-        );
+        if (
+            $("showSqlSetting")?.checked !==
+            false
+        ) {
+
+            sqlSection.classList.remove(
+                "d-none"
+            );
+
+        }
 
     }
 
@@ -1421,24 +847,17 @@ document.addEventListener("DOMContentLoaded", () => {
     function displayTable(rows) {
 
         if (
+            !tableSection ||
             !tableHead ||
-            !tableBody ||
-            !tableSection
+            !tableBody
         ) {
-
             return;
-
         }
 
 
-        tableHead.innerHTML = "";
-
-        tableBody.innerHTML = "";
-
-
         if (
-            !rows ||
-            rows.length === 0
+            !Array.isArray(rows) ||
+            !rows.length
         ) {
 
             tableSection.classList.add(
@@ -1456,77 +875,41 @@ document.addEventListener("DOMContentLoaded", () => {
             );
 
 
-        headers.forEach(
-            header => {
-
-                const th =
-                    document.createElement(
-                        "th"
-                    );
-
-
-                th.innerText =
-                    header;
+        tableHead.innerHTML =
+            headers
+                .map(
+                    header =>
+                        `<th>${escapeHtml(
+                            header
+                        )}</th>`
+                )
+                .join("");
 
 
-                tableHead.appendChild(
-                    th
-                );
+        tableBody.innerHTML =
+            rows
+                .map(
+                    row => `
 
-            }
-        );
+                    <tr>
 
-
-        rows.forEach(
-            row => {
-
-                const tr =
-                    document.createElement(
-                        "tr"
-                    );
-
-
-                headers.forEach(
-                    header => {
-
-                        const td =
-                            document.createElement(
-                                "td"
-                            );
-
-
-                        let value =
-                            row[header];
-
-
-                        if (
-                            value === null ||
-                            value === undefined
-                        ) {
-
-                            value = "";
-
+                        ${
+                            headers
+                                .map(
+                                    header =>
+                                        `<td>${escapeHtml(
+                                            row[header] ??
+                                            ""
+                                        )}</td>`
+                                )
+                                .join("")
                         }
 
+                    </tr>
 
-                        td.innerText =
-                            value;
-
-
-                        tr.appendChild(
-                            td
-                        );
-
-                    }
-                );
-
-
-                tableBody.appendChild(
-                    tr
-                );
-
-            }
-        );
+                `
+                )
+                .join("");
 
 
         tableSection.classList.remove(
@@ -1537,80 +920,531 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
     /* =========================================================
-       RECENT QUERY
+       CHAT MESSAGE
     ========================================================== */
 
-    function addRecentQuery(
-        question,
-        databaseName,
-        databaseType
+    function addChatMessage(
+        text,
+        role
     ) {
 
-        const recentList =
-            document.getElementById(
-                "recentQueries"
-            );
-
-
-        if (!recentList) {
+        if (!chatWindow) {
             return;
         }
 
 
-        const item =
+        /*
+         * Remove empty-state message when the
+         * first real conversation starts.
+         */
+
+        const emptyState =
+            chatWindow.querySelector(
+                ".empty-state"
+            );
+
+
+        if (emptyState) {
+
+            emptyState.remove();
+
+        }
+
+
+        const div =
             document.createElement(
                 "div"
             );
 
 
-        item.className =
-            "recent-item";
+        div.className =
+            `chat-message ${
+                role === "user"
+                    ? "user-message"
+                    : "assistant-message"
+            }`;
 
 
-        const logoClass =
-            getDatabaseLogoClass(
-                databaseType
-            );
+        div.innerHTML = `
 
-
-        item.innerHTML = `
-
-            <div class="recent-db-icon ${logoClass}">
-                <i class="bi bi-database-fill"></i>
-            </div>
-
-            <div class="recent-content">
-
-                <strong>
-                    ${escapeHtml(question)}
-                </strong>
-
-                <span>
-                    <i class="bi bi-database-fill"></i>
-                    ${escapeHtml(databaseName)}
-                </span>
-
-            </div>
+            ${escapeHtml(text)}
 
             <time>
-                Just now
+                ${
+                    new Date().toLocaleTimeString(
+                        [],
+                        {
+                            hour:
+                                "2-digit",
+
+                            minute:
+                                "2-digit"
+                        }
+                    )
+                }
             </time>
 
         `;
 
 
-        recentList.prepend(
-            item
+        chatWindow.appendChild(
+            div
         );
 
 
-        while (
-            recentList.children.length >
-            5
+        chatWindow.scrollTop =
+            chatWindow.scrollHeight;
+
+    }
+
+
+    /* =========================================================
+       FEMALE VOICE CONFIGURATION
+    ========================================================== */
+
+    /*
+     * Browser speech synthesis does not expose a standard
+     * "gender" property.
+     *
+     * Therefore we score voices based on:
+     *
+     * 1. Exact language
+     * 2. Female voice name indicators
+     * 3. Known female Microsoft / Google / Apple voices
+     *
+     * This makes the application strongly prefer a female
+     * voice whenever the browser provides one.
+     */
+
+    const femaleVoiceNames = [
+
+        /* Microsoft voices */
+
+        "zira",
+        "heera",
+        "kalpana",
+        "swara",
+        "sara",
+        "susan",
+        "jenny",
+        "aria",
+        "libby",
+        "sonia",
+        "hazel",
+        "linda",
+        "samantha",
+        "eva",
+        "natalie",
+        "michelle",
+
+        /* Google voices */
+
+        "google uk english female",
+        "google us english female",
+        "google english female",
+        "google hindi female",
+        "google tamil female",
+        "google indian english female",
+
+        /* Apple voices */
+
+        "ava",
+        "allison",
+        "karen",
+        "moira",
+        "tessa",
+
+        /* Other common female voice indicators */
+
+        "female",
+        "woman",
+        "girl"
+
+    ];
+
+
+    /*
+     * Some male voice names are explicitly excluded
+     * so the browser does not accidentally select them.
+     */
+
+    const maleVoiceNames = [
+
+        "david",
+        "mark",
+        "george",
+        "richard",
+        "daniel",
+        "james",
+        "alex",
+        "fred",
+        "tom",
+        "aaron",
+        "arthur",
+        "guy",
+        "male",
+        "man"
+
+    ];
+
+
+    /* =========================================================
+       SCORE FEMALE VOICE
+    ========================================================== */
+
+    function scoreFemaleVoice(
+        voice,
+        language
+    ) {
+
+        if (!voice) {
+            return -9999;
+        }
+
+
+        const voiceName =
+            String(
+                voice.name || ""
+            ).toLowerCase();
+
+
+        const voiceLang =
+            String(
+                voice.lang || ""
+            ).toLowerCase();
+
+
+        const wantedLanguage =
+            String(
+                language || "en-US"
+            ).toLowerCase();
+
+
+        const wantedBase =
+            wantedLanguage
+                .split("-")[0];
+
+
+        const voiceBase =
+            voiceLang
+                .split("-")[0];
+
+
+        let score = 0;
+
+
+        /* -----------------------------------------------------
+           LANGUAGE MATCH
+        ------------------------------------------------------ */
+
+        if (
+            voiceLang ===
+            wantedLanguage
         ) {
 
-            recentList.removeChild(
-                recentList.lastElementChild
+            score += 1000;
+
+        } else if (
+            voiceBase ===
+            wantedBase
+        ) {
+
+            score += 700;
+
+        } else {
+
+            score -= 500;
+
+        }
+
+
+        /* -----------------------------------------------------
+           FEMALE VOICE NAME
+        ------------------------------------------------------ */
+
+        femaleVoiceNames.forEach(
+            femaleName => {
+
+                if (
+                    voiceName.includes(
+                        femaleName
+                    )
+                ) {
+
+                    score += 500;
+
+                }
+
+            }
+        );
+
+
+        /* -----------------------------------------------------
+           MALE VOICE NAME
+        ------------------------------------------------------ */
+
+        maleVoiceNames.forEach(
+            maleName => {
+
+                if (
+                    voiceName === maleName ||
+                    voiceName.includes(
+                        ` ${maleName} `
+                    ) ||
+                    voiceName.startsWith(
+                        `${maleName} `
+                    ) ||
+                    voiceName.endsWith(
+                        ` ${maleName}`
+                    )
+                ) {
+
+                    score -= 800;
+
+                }
+
+            }
+        );
+
+
+        /* -----------------------------------------------------
+           LOCAL SERVICE / DEFAULT VOICE
+        ------------------------------------------------------ */
+
+        if (
+            voice.localService
+        ) {
+
+            score += 30;
+
+        }
+
+
+        return score;
+
+    }
+
+
+    /* =========================================================
+       FIND BEST FEMALE VOICE
+    ========================================================== */
+
+    function getBestFemaleVoice(
+        language
+    ) {
+
+        if (!voices.length) {
+            return null;
+        }
+
+
+        const rankedVoices =
+            [...voices]
+                .map(
+                    voice => ({
+                        voice,
+                        score:
+                            scoreFemaleVoice(
+                                voice,
+                                language
+                            )
+                    })
+                )
+                .sort(
+                    (a, b) =>
+                        b.score -
+                        a.score
+                );
+
+
+        console.log(
+            "Available speech voices:",
+            voices.map(
+                voice => ({
+                    name:
+                        voice.name,
+
+                    language:
+                        voice.lang
+                })
+            )
+        );
+
+
+        console.log(
+            "Selected female voice:",
+            rankedVoices[0]?.voice?.name,
+            rankedVoices[0]?.voice?.lang,
+            "score:",
+            rankedVoices[0]?.score
+        );
+
+
+        return (
+            rankedVoices[0]?.voice ||
+            null
+        );
+
+    }
+
+
+    /* =========================================================
+       TEXT TO SPEECH
+    ========================================================== */
+
+    function speakAnswer(text) {
+
+        if (
+            !text ||
+            !$("voiceResponseSetting")?.checked
+        ) {
+            return;
+        }
+
+
+        if (
+            !window.speechSynthesis
+        ) {
+            console.warn(
+                "Speech synthesis is not supported by this browser."
+            );
+
+            return;
+        }
+
+
+        const language =
+            $("assistantLanguage")?.value ||
+            $("topLanguage")?.value ||
+            "en-US";
+
+
+        /*
+         * Always stop previous speech first.
+         */
+
+        window.speechSynthesis.cancel();
+
+
+        /*
+         * Get the best available female voice.
+         */
+
+        const selectedVoice =
+            getBestFemaleVoice(
+                language
+            );
+
+
+        const utterance =
+            new SpeechSynthesisUtterance(
+                text
+            );
+
+
+        utterance.lang =
+            language;
+
+
+        /*
+         * Prefer female voice.
+         */
+
+        if (selectedVoice) {
+
+            utterance.voice =
+                selectedVoice;
+
+        }
+
+
+        /*
+         * Natural female-style speech settings.
+         *
+         * These do not change the gender of a voice,
+         * but can make the speech sound more natural.
+         */
+
+        utterance.rate = 0.95;
+
+        utterance.pitch = 1.05;
+
+        utterance.volume = 1.0;
+
+
+        /*
+         * Debug information.
+         */
+
+        console.log(
+            "AI voice:",
+            selectedVoice
+                ? selectedVoice.name
+                : "Browser default",
+
+            "| Language:",
+            language
+        );
+
+
+        /*
+         * Some browsers need a small delay after
+         * speechSynthesis.cancel().
+         */
+
+        setTimeout(
+            () => {
+
+                window.speechSynthesis.speak(
+                    utterance
+                );
+
+            },
+            100
+        );
+
+    }
+
+
+    /* =========================================================
+       LOAD VOICES
+    ========================================================== */
+
+    function loadVoices() {
+
+        if (
+            !window.speechSynthesis
+        ) {
+            return;
+        }
+
+
+        voices =
+            window.speechSynthesis
+                .getVoices();
+
+
+        console.log(
+            "Speech voices loaded:",
+            voices.length
+        );
+
+
+        if (voices.length) {
+
+            console.table(
+                voices.map(
+                    voice => ({
+                        Name:
+                            voice.name,
+
+                        Language:
+                            voice.lang,
+
+                        Local:
+                            voice.localService
+                    })
+                )
             );
 
         }
@@ -1618,48 +1452,576 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
 
-    /* =========================================================
-       HTML ESCAPE
-    ========================================================== */
+    /*
+     * Initial voice loading.
+     */
 
-    function escapeHtml(value) {
+    loadVoices();
 
-        return String(value)
-            .replace(
-                /&/g,
-                "&amp;"
-            )
-            .replace(
-                /</g,
-                "&lt;"
-            )
-            .replace(
-                />/g,
-                "&gt;"
-            )
-            .replace(
-                /"/g,
-                "&quot;"
-            )
-            .replace(
-                /'/g,
-                "&#039;"
-            );
+
+    /*
+     * Chrome/Edge often loads voices asynchronously.
+     */
+
+    if (
+        window.speechSynthesis
+    ) {
+
+        window.speechSynthesis.onvoiceschanged =
+            () => {
+
+                loadVoices();
+
+            };
 
     }
 
 
     /* =========================================================
-       ADD DATABASE MODAL
+       VOICE RECOGNITION
     ========================================================== */
 
-    const databaseModalElement =
-        document.getElementById(
-            "databaseModal"
+    const SpeechRecognition =
+        window.SpeechRecognition ||
+        window.webkitSpeechRecognition;
+
+
+    if (SpeechRecognition) {
+
+        recognition =
+            new SpeechRecognition();
+
+
+        recognition.continuous =
+            false;
+
+
+        recognition.interimResults =
+            false;
+
+
+        recognition.onstart =
+            () => {
+
+                $("voiceBtn")
+                    ?.classList
+                    .add(
+                        "listening"
+                    );
+
+
+                $("inlineVoiceBtn")
+                    ?.classList
+                    .add(
+                        "listening"
+                    );
+
+            };
+
+
+        recognition.onresult =
+            event => {
+
+                const transcript =
+                    event
+                        .results[0][0]
+                        .transcript;
+
+
+                if (questionInput) {
+
+                    questionInput.value =
+                        transcript;
+
+                }
+
+
+                if (chatInput) {
+
+                    chatInput.value =
+                        transcript;
+
+                }
+
+
+                askQuestion(
+                    transcript
+                );
+
+            };
+
+
+        recognition.onend =
+            () => {
+
+                $("voiceBtn")
+                    ?.classList
+                    .remove(
+                        "listening"
+                    );
+
+
+                $("inlineVoiceBtn")
+                    ?.classList
+                    .remove(
+                        "listening"
+                    );
+
+            };
+
+
+        recognition.onerror =
+            error => {
+
+                console.warn(
+                    "Speech recognition:",
+                    error
+                );
+
+            };
+
+    }
+
+
+    /* =========================================================
+       START VOICE
+    ========================================================== */
+
+    function startVoice() {
+
+        if (!recognition) {
+
+            showAnswer(
+                "Voice input is not supported by this browser."
+            );
+
+            return;
+
+        }
+
+
+        recognition.lang =
+            $("assistantLanguage")?.value ||
+            $("topLanguage")?.value ||
+            "en-US";
+
+
+        try {
+
+            recognition.start();
+
+        } catch (_) {
+
+            /*
+             * Recognition may already be running.
+             */
+
+        }
+
+    }
+
+
+    $("voiceBtn")
+        ?.addEventListener(
+            "click",
+            startVoice
         );
 
 
-    let databaseModal = null;
+    $("inlineVoiceBtn")
+        ?.addEventListener(
+            "click",
+            startVoice
+        );
+
+
+    /* =========================================================
+       NAVIGATION
+    ========================================================== */
+
+    function showView(name) {
+
+        document
+            .querySelectorAll(
+                ".view"
+            )
+            .forEach(
+                view =>
+                    view.classList.add(
+                        "hidden-view"
+                    )
+            );
+
+
+        const target =
+            $(`${name}View`);
+
+
+        if (target) {
+
+            target.classList.remove(
+                "hidden-view"
+            );
+
+        }
+
+
+        document
+            .querySelectorAll(
+                ".nav-item"
+            )
+            .forEach(
+                item => {
+
+                    item.classList.toggle(
+                        "active",
+                        item.dataset.view ===
+                        name
+                    );
+
+                }
+            );
+
+
+        if (
+            name ===
+            "databases"
+        ) {
+
+            renderManagedDatabases();
+
+        }
+
+    }
+
+
+    /* =========================================================
+       SIDEBAR NAVIGATION
+    ========================================================== */
+
+    document
+        .querySelectorAll(
+            ".nav-item"
+        )
+        .forEach(
+            item => {
+
+                item.addEventListener(
+                    "click",
+                    () => {
+
+                        showView(
+                            item.dataset.view
+                        );
+
+                    }
+                );
+
+            }
+        );
+
+
+    /* =========================================================
+       FEATURE BUTTON NAVIGATION
+    ========================================================== */
+
+    document
+        .querySelectorAll(
+            "[data-view-target]"
+        )
+        .forEach(
+            button => {
+
+                button.addEventListener(
+                    "click",
+                    () => {
+
+                        const view =
+                            button.dataset
+                                .viewTarget;
+
+
+                        showView(
+                            view
+                        );
+
+                    }
+                );
+
+            }
+        );
+
+
+    /* =========================================================
+       ASK BUTTON
+    ========================================================== */
+
+    if (askBtn) {
+
+        askBtn.addEventListener(
+            "click",
+            () => {
+
+                askQuestion();
+
+            }
+        );
+
+    }
+
+
+    /* =========================================================
+       ENTER KEY
+    ========================================================== */
+
+    if (questionInput) {
+
+        questionInput.addEventListener(
+            "keydown",
+            event => {
+
+                if (
+                    event.key ===
+                    "Enter" &&
+                    !event.shiftKey
+                ) {
+
+                    event.preventDefault();
+
+                    askQuestion();
+
+                }
+
+            }
+        );
+
+    }
+
+
+    /* =========================================================
+       SAMPLE QUESTIONS
+       ---------------------------------------------------------
+       Sample questions are intentionally supported only
+       if the HTML contains them.
+    ========================================================== */
+
+    document
+        .querySelectorAll(
+            ".sample-question"
+        )
+        .forEach(
+            button => {
+
+                button.addEventListener(
+                    "click",
+                    () => {
+
+                        if (
+                            !questionInput
+                        ) {
+                            return;
+                        }
+
+
+                        questionInput.value =
+                            button
+                                .textContent
+                                .trim();
+
+
+                        questionInput.focus();
+
+                    }
+                );
+
+            }
+        );
+
+
+    /* =========================================================
+       RIGHT CHAT SEND
+    ========================================================== */
+
+    if (chatSend) {
+
+        chatSend.addEventListener(
+            "click",
+            () => {
+
+                const value =
+                    chatInput
+                        ?.value
+                        .trim();
+
+
+                if (!value) {
+                    return;
+                }
+
+
+                if (questionInput) {
+
+                    questionInput.value =
+                        value;
+
+                }
+
+
+                if (chatInput) {
+
+                    chatInput.value =
+                        "";
+
+                }
+
+
+                showView(
+                    "dashboard"
+                );
+
+
+                askQuestion(
+                    value
+                );
+
+            }
+        );
+
+    }
+
+
+    /* =========================================================
+       CHAT ENTER
+    ========================================================== */
+
+    if (chatInput) {
+
+        chatInput.addEventListener(
+            "keydown",
+            event => {
+
+                if (
+                    event.key ===
+                    "Enter"
+                ) {
+
+                    event.preventDefault();
+
+                    chatSend?.click();
+
+                }
+
+            }
+        );
+
+    }
+
+
+    /* =========================================================
+       CHAT TABS
+    ========================================================== */
+
+    document
+        .querySelectorAll(
+            ".chat-tab"
+        )
+        .forEach(
+            tab => {
+
+                tab.addEventListener(
+                    "click",
+                    () => {
+
+                        document
+                            .querySelectorAll(
+                                ".chat-tab"
+                            )
+                            .forEach(
+                                item =>
+                                    item.classList
+                                        .remove(
+                                            "active"
+                                        )
+                            );
+
+
+                        tab.classList.add(
+                            "active"
+                        );
+
+
+                        if (
+                            tab.dataset.tab ===
+                            "history"
+                        ) {
+
+                            chatWindow.innerHTML = `
+
+                                <div
+                                    class="empty-state"
+                                    style="min-height:160px"
+                                >
+
+                                    <i class="bi bi-clock-history"></i>
+
+                                    <strong>
+                                        Conversation history
+                                    </strong>
+
+                                    <span>
+                                        Previous questions
+                                        will appear here.
+                                    </span>
+
+                                </div>
+
+                            `;
+
+                        } else {
+
+                            /*
+                             * No sample/demo conversation.
+                             * Keep the assistant area empty
+                             * until the user asks something.
+                             */
+
+                            chatWindow.innerHTML = `
+
+                                <div
+                                    class="empty-state"
+                                    style="min-height:160px"
+                                >
+
+                                    <i class="bi bi-chat-dots"></i>
+
+                                    <strong>
+                                        No conversation yet
+                                    </strong>
+
+                                    <span>
+                                        Ask a question to start
+                                        the conversation.
+                                    </span>
+
+                                </div>
+
+                            `;
+
+                        }
+
+                    }
+                );
+
+            }
+        );
+
+
+    /* =========================================================
+       DATABASE MODAL
+    ========================================================== */
+
+    const databaseModalElement =
+        $("databaseModal");
 
 
     if (
@@ -1675,47 +2037,18 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
 
-    const addDatabaseBtn =
-        document.getElementById(
-            "addDatabaseBtn"
-        );
-
-
-    const quickNewConnection =
-        document.getElementById(
-            "quickNewConnection"
-        );
-
-
     function openDatabaseModal() {
 
-        if (databaseModal) {
-
-            databaseModal.show();
-
-        }
+        databaseModal?.show();
 
     }
 
 
-    if (addDatabaseBtn) {
-
-        addDatabaseBtn.addEventListener(
+    $("manageDatabaseButton")
+        ?.addEventListener(
             "click",
             openDatabaseModal
         );
-
-    }
-
-
-    if (quickNewConnection) {
-
-        quickNewConnection.addEventListener(
-            "click",
-            openDatabaseModal
-        );
-
-    }
 
 
     /* =========================================================
@@ -1726,184 +2059,126 @@ document.addEventListener("DOMContentLoaded", () => {
         .querySelectorAll(
             ".database-type"
         )
-        .forEach(button => {
+        .forEach(
+            button => {
 
-            button.addEventListener(
-                "click",
-                () => {
+                button.addEventListener(
+                    "click",
+                    () => {
 
-                    document
-                        .querySelectorAll(
-                            ".database-type"
-                        )
-                        .forEach(
-                            item =>
-                                item.classList.remove(
-                                    "selected"
-                                )
+                        document
+                            .querySelectorAll(
+                                ".database-type"
+                            )
+                            .forEach(
+                                item =>
+                                    item.classList
+                                        .remove(
+                                            "selected"
+                                        )
+                            );
+
+
+                        button.classList.add(
+                            "selected"
                         );
 
 
-                    button.classList.add(
-                        "selected"
-                    );
+                        selectedDatabaseType =
+                            button.dataset.type;
 
 
-                    selectedDatabaseType =
-                        button.dataset.type;
+                        const ports = {
+
+                            PostgreSQL:
+                                "5432",
+
+                            MySQL:
+                                "3306",
+
+                            "SQL Server":
+                                "1433",
+
+                            Oracle:
+                                "1521"
+
+                        };
 
 
-                    updateDefaultPort();
-
-                }
-            );
-
-        });
+                        const portInput =
+                            $("connectionPort");
 
 
-    function updateDefaultPort() {
+                        if (portInput) {
 
-        const portInput =
-            document.getElementById(
-                "connectionPort"
-            );
+                            portInput.value =
+                                ports[
+                                    selectedDatabaseType
+                                ] ||
+                                "";
 
+                        }
 
-        if (!portInput) {
-            return;
-        }
-
-
-        const ports = {
-
-            "PostgreSQL":
-                "5432",
-
-            "MySQL":
-                "3306",
-
-            "SQL Server":
-                "1433",
-
-            "Oracle":
-                "1521"
-
-        };
-
-
-        portInput.value =
-            ports[
-                selectedDatabaseType
-            ] || "";
-
-    }
-
-
-    /* =========================================================
-       PASSWORD TOGGLE
-    ========================================================== */
-
-    const togglePassword =
-        document.getElementById(
-            "togglePassword"
-        );
-
-
-    const passwordInput =
-        document.getElementById(
-            "connectionPassword"
-        );
-
-
-    if (
-        togglePassword &&
-        passwordInput
-    ) {
-
-        togglePassword.addEventListener(
-            "click",
-            () => {
-
-                const isPassword =
-                    passwordInput.type ===
-                    "password";
-
-
-                passwordInput.type =
-                    isPassword
-                        ? "text"
-                        : "password";
-
-
-                togglePassword.innerHTML =
-                    isPassword
-                        ? '<i class="bi bi-eye-slash"></i>'
-                        : '<i class="bi bi-eye"></i>';
+                    }
+                );
 
             }
         );
 
-    }
-
 
     /* =========================================================
-       TEST CONNECTION
+       TEST DATABASE CONNECTION
     ========================================================== */
 
-    const testConnectionBtn =
-        document.getElementById(
-            "testConnectionBtn"
-        );
-
-
-    const connectionMessage =
-        document.getElementById(
-            "connectionMessage"
-        );
-
-
-    if (testConnectionBtn) {
-
-        testConnectionBtn.addEventListener(
+    $("testConnectionBtn")
+        ?.addEventListener(
             "click",
             async () => {
 
-                const host =
-                    document.getElementById(
-                        "connectionHost"
-                    )?.value.trim();
+                const payload = {
 
+                    db_type:
+                        selectedDatabaseType
+                            .toLowerCase()
+                            .replace(
+                                /\s+/g,
+                                ""
+                            ),
 
-                const port =
-                    document.getElementById(
-                        "connectionPort"
-                    )?.value.trim();
+                    host:
+                        $("connectionHost")
+                            ?.value
+                            .trim(),
 
+                    port:
+                        Number(
+                            $("connectionPort")
+                                ?.value
+                        ),
 
-                const database =
-                    document.getElementById(
-                        "connectionDatabase"
-                    )?.value.trim();
+                    database_name:
+                        $("connectionDatabase")
+                            ?.value
+                            .trim(),
 
+                    username:
+                        $("connectionUsername")
+                            ?.value
+                            .trim(),
 
-                const username =
-                    document.getElementById(
-                        "connectionUsername"
-                    )?.value.trim();
+                    password:
+                        $("connectionPassword")
+                            ?.value
 
-
-                const password =
-                    document.getElementById(
-                        "connectionPassword"
-                    )?.value;
+                };
 
 
                 if (
-                    !host ||
-                    !port ||
-                    !database ||
-                    !username ||
-                    !password
+                    !payload.host ||
+                    !payload.port ||
+                    !payload.database_name ||
+                    !payload.username ||
+                    !payload.password
                 ) {
 
                     showConnectionMessage(
@@ -1916,19 +2191,16 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
 
 
-                /*
-                 * Backend schema uses:
-                 *
-                 * db_type
-                 * database_name
-                 */
+                const button =
+                    $("testConnectionBtn");
 
-                testConnectionBtn.disabled =
+
+                button.disabled =
                     true;
 
 
-                testConnectionBtn.innerHTML =
-                    '<span class="spinner-border spinner-border-sm me-1"></span> Testing...';
+                button.textContent =
+                    "Testing...";
 
 
                 try {
@@ -1937,27 +2209,17 @@ document.addEventListener("DOMContentLoaded", () => {
                         await fetch(
                             "/api/databases/test",
                             {
-                                method: "POST",
+
+                                method:
+                                    "POST",
 
                                 headers:
                                     getHeaders(),
 
-                                body: JSON.stringify({
-
-    db_type: selectedDatabaseType
-        .toLowerCase()
-        .replace(/\s+/g, ""),
-
-    host: host,
-
-    port: Number(port),
-
-    database_name: database,
-
-    username: username,
-
-    password: password
-})
+                                body:
+                                    JSON.stringify(
+                                        payload
+                                    )
 
                             }
                         );
@@ -1978,140 +2240,108 @@ document.addEventListener("DOMContentLoaded", () => {
                     }
 
 
-                    if (
+                    showConnectionMessage(
+
+                        data.message ||
+                        (
+                            data.success
+                                ? "Connection successful."
+                                : "Connection failed."
+                        ),
+
                         data.success
-                    ) {
+                            ? "success"
+                            : "error"
 
-                        showConnectionMessage(
-                            data.message ||
-                            "Database connection successful.",
-                            "success"
-                        );
-
-                    } else {
-
-                        showConnectionMessage(
-                            data.message ||
-                            "Database connection failed.",
-                            "error"
-                        );
-
-                    }
-
+                    );
 
                 } catch (error) {
 
-                    console.error(
-                        "Connection test error:",
-                        error
-                    );
-
-
                     showConnectionMessage(
-                        error.message ||
-                        "Unable to test connection.",
+                        error.message,
                         "error"
                     );
 
                 } finally {
 
-                    testConnectionBtn.disabled =
+                    button.disabled =
                         false;
 
-                    testConnectionBtn.innerHTML =
-                        '<i class="bi bi-plug"></i> Test Connection';
+
+                    button.innerHTML = `
+                        <i class="bi bi-plug"></i>
+                        Test Connection
+                    `;
 
                 }
 
             }
         );
 
-    }
-
-
-    function showConnectionMessage(
-        message,
-        type
-    ) {
-
-        if (!connectionMessage) {
-            return;
-        }
-
-
-        connectionMessage.className =
-            `connection-message ${type}`;
-
-
-        connectionMessage.innerText =
-            message;
-
-    }
-
 
     /* =========================================================
        SAVE DATABASE
     ========================================================== */
 
-    const saveDatabaseBtn =
-        document.getElementById(
-            "saveDatabaseBtn"
-        );
-
-
-    if (saveDatabaseBtn) {
-
-        saveDatabaseBtn.addEventListener(
+    $("saveDatabaseBtn")
+        ?.addEventListener(
             "click",
             async () => {
 
-                const connectionName =
-                    document.getElementById(
-                        "connectionName"
-                    )?.value.trim();
+                const payload = {
 
+                    name:
+                        $("connectionName")
+                            ?.value
+                            .trim(),
 
-                const host =
-                    document.getElementById(
-                        "connectionHost"
-                    )?.value.trim();
+                    db_type:
+                        selectedDatabaseType
+                            .toLowerCase()
+                            .replace(
+                                /\s+/g,
+                                ""
+                            ),
 
+                    host:
+                        $("connectionHost")
+                            ?.value
+                            .trim(),
 
-                const port =
-                    document.getElementById(
-                        "connectionPort"
-                    )?.value.trim();
+                    port:
+                        Number(
+                            $("connectionPort")
+                                ?.value
+                        ),
 
+                    database_name:
+                        $("connectionDatabase")
+                            ?.value
+                            .trim(),
 
-                const database =
-                    document.getElementById(
-                        "connectionDatabase"
-                    )?.value.trim();
+                    username:
+                        $("connectionUsername")
+                            ?.value
+                            .trim(),
 
+                    password:
+                        $("connectionPassword")
+                            ?.value
 
-                const username =
-                    document.getElementById(
-                        "connectionUsername"
-                    )?.value.trim();
-
-
-                const password =
-                    document.getElementById(
-                        "connectionPassword"
-                    )?.value;
+                };
 
 
                 if (
-                    !connectionName ||
-                    !host ||
-                    !port ||
-                    !database ||
-                    !username ||
-                    !password
+                    !payload.name ||
+                    !payload.host ||
+                    !payload.port ||
+                    !payload.database_name ||
+                    !payload.username ||
+                    !payload.password
                 ) {
 
                     showConnectionMessage(
-                        "Please complete all fields before saving.",
+                        "Please complete all database fields.",
                         "error"
                     );
 
@@ -2120,33 +2350,16 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
 
 
-                /*
-                 * Oracle is displayed in the UI,
-                 * but the current backend does not
-                 * yet support Oracle.
-                 */
-
-                if (
-                    selectedDatabaseType ===
-                    "Oracle"
-                ) {
-
-                    showConnectionMessage(
-                        "Oracle support is not enabled in the current backend yet.",
-                        "error"
-                    );
-
-                    return;
-
-                }
+                const button =
+                    $("saveDatabaseBtn");
 
 
-                saveDatabaseBtn.disabled =
+                button.disabled =
                     true;
 
 
-                saveDatabaseBtn.innerHTML =
-                    '<span class="spinner-border spinner-border-sm me-1"></span> Saving...';
+                button.textContent =
+                    "Saving...";
 
 
                 try {
@@ -2155,31 +2368,18 @@ document.addEventListener("DOMContentLoaded", () => {
                         await fetch(
                             "/api/databases",
                             {
-                                method: "POST",
+
+                                method:
+                                    "POST",
 
                                 headers:
                                     getHeaders(),
-                                    
-                                    body: JSON.stringify({
 
-    name: connectionName,
+                                body:
+                                    JSON.stringify(
+                                        payload
+                                    )
 
-    db_type: selectedDatabaseType
-        .toLowerCase()
-        .replace(/\s+/g, ""),
-
-    host: host,
-
-    port: Number(port),
-
-    database_name: database,
-
-    username: username,
-
-    password: password
-})
-
-                                
                             }
                         );
 
@@ -2204,459 +2404,501 @@ document.addEventListener("DOMContentLoaded", () => {
                     );
 
 
-                    /*
-                     * Reload real databases from backend.
-                     */
-
                     await loadDatabases();
-
-
-                    /*
-                     * Select newly created database.
-                     */
-
-                    if (data && data.id) {
-
-                        const savedDatabase =
-                            databases.find(
-                                databaseItem =>
-                                    String(
-                                        databaseItem.id
-                                    ) ===
-                                    String(data.id)
-                            );
-
-                        if (savedDatabase) {
-
-                            selectDatabase(
-                                savedDatabase
-                            );
-
-                        }
-
-                    }
-
-
-                    /*
-                     * Clear form.
-                     */
-
-                    clearDatabaseForm();
 
 
                     setTimeout(
                         () => {
 
-                            if (databaseModal) {
-
-                                databaseModal.hide();
-
-                            }
+                            databaseModal?.hide();
 
                         },
-                        900
+                        500
                     );
-
 
                 } catch (error) {
 
-                    console.error(
-                        "Save database error:",
-                        error
-                    );
-
-
                     showConnectionMessage(
-                        error.message ||
-                        "Unable to save database.",
+                        error.message,
                         "error"
                     );
 
                 } finally {
 
-                    saveDatabaseBtn.disabled =
+                    button.disabled =
                         false;
 
-                    saveDatabaseBtn.innerHTML =
-                        '<i class="bi bi-check-lg"></i> Save Database';
+
+                    button.innerHTML = `
+                        <i class="bi bi-check2"></i>
+                        Save Database
+                    `;
 
                 }
 
             }
         );
+
+
+    /* =========================================================
+       DATABASE MESSAGE
+    ========================================================== */
+
+    function showConnectionMessage(
+        message,
+        type
+    ) {
+
+        const box =
+            $("connectionMessage");
+
+
+        if (!box) {
+            return;
+        }
+
+
+        box.textContent =
+            message;
+
+
+        box.className =
+            `connection-message ${type}`;
 
     }
 
 
     /* =========================================================
-       CLEAR DATABASE FORM
+       SOURCE MODAL
     ========================================================== */
 
-    function clearDatabaseForm() {
-
-        const fields = [
-
-            "connectionName",
-            "connectionHost",
-            "connectionPort",
-            "connectionDatabase",
-            "connectionUsername",
-            "connectionPassword"
-
-        ];
+    const sourceModalElement =
+        $("sourceModal");
 
 
-        fields.forEach(
-            id => {
+    if (
+        sourceModalElement &&
+        window.bootstrap
+    ) {
 
-                const element =
-                    document.getElementById(
-                        id
-                    );
+        sourceModal =
+            new bootstrap.Modal(
+                sourceModalElement
+            );
 
-                if (element) {
-                    element.value = "";
-                }
+    }
 
-            }
+
+    function openSourceModal() {
+
+        sourceModal?.show();
+
+    }
+
+
+    $("addSourceButton")
+        ?.addEventListener(
+            "click",
+            openSourceModal
         );
 
 
-        selectedDatabaseType =
-            "PostgreSQL";
+    $("documentSourceButton")
+        ?.addEventListener(
+            "click",
+            openSourceModal
+        );
 
 
-        document
-            .querySelectorAll(
-                ".database-type"
-            )
-            .forEach(
-                button => {
+    /* =========================================================
+       SOURCE TYPE
+    ========================================================== */
 
-                    button.classList.remove(
-                        "selected"
-                    );
+    document
+        .querySelectorAll(
+            ".source-type"
+        )
+        .forEach(
+            button => {
 
-                    if (
-                        button.dataset.type ===
-                        "PostgreSQL"
-                    ) {
+                button.addEventListener(
+                    "click",
+                    () => {
+
+                        document
+                            .querySelectorAll(
+                                ".source-type"
+                            )
+                            .forEach(
+                                item =>
+                                    item.classList
+                                        .remove(
+                                            "selected"
+                                        )
+                            );
+
 
                         button.classList.add(
                             "selected"
                         );
 
                     }
-
-                }
-            );
-
-
-        const portInput =
-            document.getElementById(
-                "connectionPort"
-            );
-
-
-        if (portInput) {
-            portInput.value = "5432";
-        }
-
-
-        if (connectionMessage) {
-
-            connectionMessage.className =
-                "connection-message d-none";
-
-            connectionMessage.innerText =
-                "";
-
-        }
-
-    }
-
-
-    /* =========================================================
-       VIEW SCHEMA
-    ========================================================== */
-
-    const viewSchemaBtn =
-        document.getElementById(
-            "viewSchemaBtn"
-        );
-
-
-    const quickSchema =
-        document.getElementById(
-            "quickSchema"
-        );
-
-
-    async function viewSchema() {
-
-        if (!selectedDatabase) {
-
-            alert(
-                "Please select a database first."
-            );
-
-            return;
-
-        }
-
-
-        try {
-
-            const response =
-                await fetch(
-                    `/api/databases/${selectedDatabase.id}/schema`,
-                    {
-                        method: "GET",
-                        headers: getHeaders()
-                    }
-                );
-
-
-            const data =
-                await response.json();
-
-
-            if (!response.ok) {
-
-                throw new Error(
-                    data.detail ||
-                    "Unable to load database schema."
                 );
 
             }
+        );
 
 
-            if (
-    !Array.isArray(data) ||
-    data.length === 0
-) {
+    /* =========================================================
+       SAVE SOURCE
+    ========================================================== */
 
-    alert(
-        "No tables were found in this database."
-    );
+    $("saveSourceButton")
+        ?.addEventListener(
+            "click",
+            () => {
 
-    return;
-
-}
-
-
-            let message =
-                `DATABASE: ${selectedDatabase.name}\n\n`;
+                const name =
+                    $("sourceName")
+                        ?.value
+                        .trim();
 
 
-            data.forEach(
-    table => {
+                const path =
+                    $("sourcePath")
+                        ?.value
+                        .trim();
 
-                    message +=
-                        `TABLE: ${table.table_name}\n`;
 
-                    table.columns.forEach(
-                        column => {
+                const box =
+                    $("sourceMessage");
 
-                            message +=
-                                `  • ${column.name} (${column.type})\n`;
+
+                if (
+                    !name ||
+                    !path
+                ) {
+
+                    box.textContent =
+                        "Enter a source name and location.";
+
+
+                    box.className =
+                        "source-message error";
+
+
+                    return;
+
+                }
+
+
+                box.textContent =
+                    `Source "${name}" configured for ${path}. Backend indexing is required to make its files searchable.`;
+
+
+                box.className =
+                    "source-message success";
+
+
+                setTimeout(
+                    () => {
+
+                        sourceModal?.hide();
+
+                    },
+                    900
+                );
+
+            }
+        );
+
+
+    /* =========================================================
+       VIEW DATABASE SCHEMA
+    ========================================================== */
+
+    $("viewSchemaBtn")
+        ?.addEventListener(
+            "click",
+            async () => {
+
+                if (!selectedDatabase) {
+
+                    showAnswer(
+                        "Please connect and select a database first."
+                    );
+
+                    return;
+
+                }
+
+
+                try {
+
+                    const response =
+                        await fetch(
+                            `/api/databases/${selectedDatabase.id}/schema`,
+                            {
+                                headers:
+                                    getHeaders()
+                            }
+                        );
+
+
+                    const data =
+                        await response.json();
+
+
+                    if (!response.ok) {
+
+                        throw new Error(
+                            data.detail ||
+                            "Unable to load schema."
+                        );
+
+                    }
+
+
+                    if (
+                        !Array.isArray(data) ||
+                        !data.length
+                    ) {
+
+                        showAnswer(
+                            "No tables were found in this database."
+                        );
+
+                        return;
+
+                    }
+
+
+                    const text =
+                        data
+                            .map(
+                                table => {
+
+                                    const columns =
+                                        (
+                                            table.columns ||
+                                            []
+                                        )
+                                            .map(
+                                                column =>
+                                                    `• ${column.name} (${column.type})`
+                                            )
+                                            .join(
+                                                "\n"
+                                            );
+
+
+                                    return `
+TABLE: ${table.table_name}
+${columns}
+                                    `.trim();
+
+                                }
+                            )
+                            .join(
+                                "\n\n"
+                            );
+
+
+                    showAnswer(
+                        `DATABASE: ${selectedDatabase.name}\n\n${text}`
+                    );
+
+                } catch (error) {
+
+                    showAnswer(
+                        `Unable to load schema.
+
+${error.message}`
+                    );
+
+                }
+
+            }
+        );
+
+
+    /* =========================================================
+       LANGUAGE SYNCHRONIZATION
+    ========================================================== */
+
+    [
+        "topLanguage",
+        "assistantLanguage"
+    ]
+        .forEach(
+            id => {
+
+                $(id)
+                    ?.addEventListener(
+                        "change",
+                        () => {
+
+                            const value =
+                                $(id).value;
+
+
+                            if (
+                                $("topLanguage")
+                            ) {
+
+                                $("topLanguage")
+                                    .value =
+                                    value;
+
+                            }
+
+
+                            if (
+                                $("assistantLanguage")
+                            ) {
+
+                                $("assistantLanguage")
+                                    .value =
+                                    value;
+
+                            }
+
+
+                            /*
+                             * Reload voice preference when
+                             * language changes.
+                             */
+
+                            loadVoices();
 
                         }
                     );
 
-                    message += "\n";
-
-                }
-            );
-
-
-            alert(
-                message
-            );
-
-
-        } catch (error) {
-
-            console.error(
-                "Schema error:",
-                error
-            );
-
-
-            alert(
-                `Unable to load schema.\n\n${error.message}`
-            );
-
-        }
-
-    }
-
-
-    if (viewSchemaBtn) {
-
-        viewSchemaBtn.addEventListener(
-            "click",
-            viewSchema
+            }
         );
-
-    }
-
-
-    if (quickSchema) {
-
-        quickSchema.addEventListener(
-            "click",
-            viewSchema
-        );
-
-    }
 
 
     /* =========================================================
-       SIDEBAR NAVIGATION
+       ATTACH BUTTON
     ========================================================== */
 
-    document
-        .querySelectorAll(
-            ".nav-item"
-        )
-        .forEach(item => {
+    $("attachButton")
+        ?.addEventListener(
+            "click",
+            () => {
 
-            item.addEventListener(
-                "click",
-                event => {
-
-                    event.preventDefault();
+                showView(
+                    "documents"
+                );
 
 
-                    document
-                        .querySelectorAll(
-                            ".nav-item"
-                        )
-                        .forEach(
-                            nav =>
-                                nav.classList.remove(
-                                    "active"
-                                )
-                        );
-
-
-                    item.classList.add(
-                        "active"
-                    );
-
-
-                    const section =
-                        item.dataset.section;
-
-
-                    if (
-                        section ===
-                        "databases"
-                    ) {
-
-                        document
-                            .getElementById(
-                                "databaseSection"
-                            )
-                            ?.scrollIntoView({
-                                behavior:
-                                    "smooth"
-                            });
-
-                    }
-
-
-                    if (
-                        section ===
-                        "ask"
-                    ) {
-
-                        document
-                            .getElementById(
-                                "askSection"
-                            )
-                            ?.scrollIntoView({
-                                behavior:
-                                    "smooth"
-                            });
-
-                    }
-
-
-                    if (
-                        section ===
-                        "home"
-                    ) {
-
-                        window.scrollTo({
-                            top: 0,
-                            behavior:
-                                "smooth"
-                        });
-
-                    }
-
-                }
-            );
-
-        });
-
-
-    /* =========================================================
-       GLOBAL SEARCH
-    ========================================================== */
-
-    const globalSearch =
-        document.getElementById(
-            "globalSearch"
-        );
-
-
-    if (globalSearch) {
-
-        globalSearch.addEventListener(
-            "keydown",
-            event => {
-
-                if (
-                    event.key === "Enter"
-                ) {
-
-                    const value =
-                        globalSearch.value.trim();
-
-
-                    if (!value) {
-                        return;
-                    }
-
-
-                    if (questionInput) {
-
-                        questionInput.value =
-                            value;
-
-                        questionInput.focus();
-
-                    }
-
-
-                    document
-                        .getElementById(
-                            "askSection"
-                        )
-                        ?.scrollIntoView({
-                            behavior:
-                                "smooth"
-                        });
-
-                }
+                $("documentSearch")
+                    ?.focus();
 
             }
         );
 
-    }
+
+    /* =========================================================
+       DOCUMENT SEARCH
+    ========================================================== */
+
+    $("documentSearch")
+        ?.addEventListener(
+            "input",
+            event => {
+
+                const query =
+                    event.target.value
+                        .toLowerCase();
+
+
+                document
+                    .querySelectorAll(
+                        "#documentLibrary .library-card"
+                    )
+                    .forEach(
+                        card => {
+
+                            card.style.display =
+                                card.textContent
+                                    .toLowerCase()
+                                    .includes(
+                                        query
+                                    )
+                                        ? ""
+                                        : "none";
+
+                        }
+                    );
+
+            }
+        );
+
+
+    /* =========================================================
+       SETTINGS LANGUAGE
+    ========================================================== */
+
+    $("settingsLanguage")
+        ?.addEventListener(
+            "change",
+            event => {
+
+                const value =
+                    event.target.value;
+
+
+                const map = {
+
+                    English:
+                        "en-US",
+
+                    Hindi:
+                        "hi-IN",
+
+                    Tamil:
+                        "ta-IN"
+
+                };
+
+
+                const language =
+                    map[value] ||
+                    "en-US";
+
+
+                if (
+                    $("topLanguage")
+                ) {
+
+                    $("topLanguage")
+                        .value =
+                        language;
+
+                }
+
+
+                if (
+                    $("assistantLanguage")
+                ) {
+
+                    $("assistantLanguage")
+                        .value =
+                        language;
+
+                }
+
+
+                /*
+                 * Make sure speech uses the newly
+                 * selected language.
+                 */
+
+                loadVoices();
+
+            }
+        );
 
 
     /* =========================================================
@@ -2668,15 +2910,17 @@ document.addEventListener("DOMContentLoaded", () => {
         event => {
 
             if (
-                (event.ctrlKey ||
-                    event.metaKey) &&
+                (
+                    event.ctrlKey ||
+                    event.metaKey
+                ) &&
                 event.key.toLowerCase() ===
-                    "k"
+                "k"
             ) {
 
                 event.preventDefault();
 
-                globalSearch?.focus();
+                questionInput?.focus();
 
             }
 
@@ -2684,5 +2928,36 @@ document.addEventListener("DOMContentLoaded", () => {
     );
 
 
-});
+    /* =========================================================
+       INITIAL LOAD
+    ========================================================== */
 
+    loadDatabases();
+
+
+    /*
+     * Load speech voices again shortly after startup.
+     * Chrome/Edge sometimes populate the voice list
+     * after DOMContentLoaded.
+     */
+
+    setTimeout(
+        () => {
+
+            loadVoices();
+
+        },
+        500
+    );
+
+
+    setTimeout(
+        () => {
+
+            loadVoices();
+
+        },
+        1500
+    );
+
+});

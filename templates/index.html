@@ -1,211 +1,1459 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
+
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>Enterprise AI Assistant</title>
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
 
-    <!-- Bootstrap -->
+    <title>AI Assistant | Enterprise AI</title>
+
+
+    <!-- =========================================================
+         GOOGLE FONT
+    ========================================================== -->
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+
+    <link
+        rel="preconnect"
+        href="https://fonts.gstatic.com"
+        crossorigin
+    >
+
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet"
+    >
+
+
+    <!-- =========================================================
+         BOOTSTRAP
+    ========================================================== -->
+
     <link
         href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
         rel="stylesheet"
     >
 
-    <!-- Bootstrap Icons -->
+
+    <!-- =========================================================
+         BOOTSTRAP ICONS
+    ========================================================== -->
+
     <link
         rel="stylesheet"
         href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
     >
 
-    <!-- Application CSS -->
-    <link rel="stylesheet" href="/static/style.css?v=10">
+
+    <!-- =========================================================
+         APPLICATION CSS
+    ========================================================== -->
+
+    <link
+        rel="stylesheet"
+        href="/static/style.css?v=21"
+    >
+
 </head>
+
 
 <body>
 
 <div class="app-shell">
 
-    
+
+    <!-- =========================================================
+         SIDEBAR
+    ========================================================== -->
+
     <aside class="sidebar">
+
+
+        <!-- BRAND -->
 
         <div class="brand">
 
-            <div class="brand-icon">
-                <i class="bi bi-brain"></i>
+            <div class="brand-mark">
+                AI
             </div>
 
-            <div>
-                <h2>Enterprise AI</h2>
-                <span>Your Data. Your Insights.</span>
+            <div class="brand-text">
+
+                <h1>
+                    AI Assistant
+                </h1>
+
+                <p>
+                    Your Business Companion
+                </p>
+
             </div>
 
         </div>
 
 
-        <nav class="sidebar-nav">
+        <!-- NAVIGATION -->
 
-            <a href="#" class="nav-item active" data-section="home">
-                <i class="bi bi-house-door-fill"></i>
-                <span>Home</span>
-            </a>
+        <nav
+            class="main-nav"
+            aria-label="Main navigation"
+        >
 
-            <a href="#" class="nav-item" data-section="databases">
-                <i class="bi bi-database"></i>
-                <span>Database Connections</span>
-            </a>
+            <button
+                class="nav-item active"
+                data-view="dashboard"
+                type="button"
+            >
 
-            <a href="#" class="nav-item" data-section="ask">
-                <i class="bi bi-chat-dots"></i>
-                <span>Ask AI</span>
-            </a>
+                <i class="bi bi-grid-1x2-fill"></i>
 
-            <a href="#" class="nav-item">
-                <i class="bi bi-bookmark"></i>
-                <span>Saved Queries</span>
-            </a>
+                <span>
+                    Dashboard
+                </span>
 
-            <a href="#" class="nav-item">
+            </button>
+
+
+            <button
+                class="nav-item"
+                data-view="conversations"
+                type="button"
+            >
+
+                <i class="bi bi-chat"></i>
+
+                <span>
+                    Conversations
+                </span>
+
+            </button>
+
+
+            <button
+                class="nav-item"
+                data-view="documents"
+                type="button"
+            >
+
+                <i class="bi bi-file-earmark-text"></i>
+
+                <span>
+                    Documents
+                </span>
+
+            </button>
+
+
+            <button
+                class="nav-item"
+                data-view="reports"
+                type="button"
+            >
+
+                <i class="bi bi-bar-chart-line"></i>
+
+                <span>
+                    Reports &amp; Analytics
+                </span>
+
+            </button>
+
+
+            <button
+                class="nav-item"
+                data-view="insights"
+                type="button"
+            >
+
+                <i class="bi bi-graph-up-arrow"></i>
+
+                <span>
+                    Data Insights
+                </span>
+
+            </button>
+
+
+            <button
+                class="nav-item"
+                data-view="knowledge"
+                type="button"
+            >
+
+                <i class="bi bi-book"></i>
+
+                <span>
+                    Knowledge Base
+                </span>
+
+            </button>
+
+
+            <button
+                class="nav-item"
+                data-view="integrations"
+                type="button"
+            >
+
+                <i class="bi bi-diagram-3"></i>
+
+                <span>
+                    Integrations
+                </span>
+
+            </button>
+
+
+            <button
+                class="nav-item"
+                data-view="settings"
+                type="button"
+            >
+
                 <i class="bi bi-gear"></i>
-                <span>Settings</span>
-            </a>
+
+                <span>
+                    Settings
+                </span>
+
+            </button>
 
         </nav>
 
 
-        <!-- AI Voice Assistant -->
+        <!-- =====================================================
+             PLAN CARD
+        ====================================================== -->
 
-        <div class="voice-assistant">
+        <div class="plan-card">
 
-            <div class="voice-header">
-                <div class="voice-wave">
-                    <i class="bi bi-soundwave"></i>
-                </div>
+            <span class="eyebrow">
+                Current Plan
+            </span>
 
-                <div>
-                    <strong>AI Assistant</strong>
-                    <small>Always here to help</small>
-                </div>
+            <strong>
+                No plan configured
+            </strong>
+
+            <small>
+                Plan information will appear here.
+            </small>
+
+
+            <div class="usage-row">
+
+                <span>
+                    Queries Used
+                </span>
+
+                <b>
+                    —
+                </b>
+
             </div>
 
-            <button
-                type="button"
-                class="voice-circle"
-                id="voiceBtn"
-                title="Speak your question"
-            >
-                <i class="bi bi-mic-fill"></i>
-            </button>
 
-            <p id="voiceStatus">Click to speak</p>
+            <div class="progress">
+                <span style="width:0%"></span>
+            </div>
+
+
+            <div class="usage-row">
+
+                <span>
+                    Storage Used
+                </span>
+
+                <b>
+                    —
+                </b>
+
+            </div>
+
+
+            <div class="progress">
+                <span style="width:0%"></span>
+            </div>
+
+
+            <button
+                class="outline-dark-button"
+                type="button"
+            >
+                View Plan Details
+            </button>
 
         </div>
 
 
-        <!-- User -->
+        <!-- =====================================================
+             SIDEBAR USER
+        ====================================================== -->
 
         <div class="sidebar-user">
 
-            <div class="user-avatar">
-                A
+            <div class="avatar">
+                AI
             </div>
 
-            <div class="user-details">
-                <strong>Admin</strong>
-                <span>admin@company.com</span>
+            <div class="user-meta">
+
+                <strong>
+                    Admin
+                </strong>
+
+                <span>
+                    Business workspace
+                </span>
+
             </div>
 
-            <i class="bi bi-chevron-right"></i>
+            <i class="bi bi-chevron-down"></i>
 
         </div>
 
     </aside>
 
 
-    
+    <!-- =========================================================
+         MAIN AREA
+    ========================================================== -->
+
     <main class="main-area">
 
-        <!-- TOPBAR -->
+
+        <!-- =====================================================
+             TOP BAR
+        ====================================================== -->
 
         <header class="topbar">
 
-            <div class="global-search">
+            <div class="topbar-left">
 
-                <i class="bi bi-search"></i>
+                <div class="mobile-brand">
+                    AI Assistant
+                </div>
 
-                <input
-                    type="text"
-                    placeholder="Search database, ask questions..."
-                    id="globalSearch"
-                >
+                <h2 id="pageGreeting">
+                    Welcome! 👋
+                </h2>
 
-                
+                <p>
+                    Your AI Assistant is here to help you
+                    work with your connected business information.
+                </p>
 
             </div>
 
 
-            <div class="topbar-actions">
+            <div class="top-actions">
 
-                <button class="icon-button">
+
+                <select
+                    id="topLanguage"
+                    class="top-select"
+                >
+
+                    <option value="en-US">
+                        🌐 English
+                    </option>
+
+                    <option value="hi-IN">
+                        🌐 Hindi
+                    </option>
+
+                    <option value="ta-IN">
+                        🌐 Tamil
+                    </option>
+
+                </select>
+
+
+                <button
+                    class="notification-button"
+                    type="button"
+                    title="Notifications"
+                >
+
                     <i class="bi bi-bell"></i>
-                    <span class="notification-dot"></span>
+
+                    <span id="notificationCount">
+                    </span>
+
                 </button>
 
-                <div class="admin-profile">
 
-                    <div class="admin-avatar">
-                        A
-                    </div>
+                <button
+                    class="upgrade-button"
+                    type="button"
+                >
 
-                    <strong>Admin</strong>
+                    <i class="bi bi-stars"></i>
 
-                    <i class="bi bi-chevron-down"></i>
+                    Upgrade Plan
 
-                </div>
+                </button>
 
             </div>
 
         </header>
 
 
-        <!-- CONTENT -->
+        <!-- =====================================================
+             WORKSPACE
+        ====================================================== -->
 
-        <div class="content-area">
+        <div class="workspace">
 
-            
-            <section class="welcome-card">
 
-                <div class="welcome-content">
+            <!-- =================================================
+                 DASHBOARD
+            ================================================== -->
 
-                    <div class="welcome-title">
-                        <span>👋</span>
-                        <h1>Welcome to Enterprise AI</h1>
-                    </div>
+            <section
+                class="dashboard-view view active-view"
+                id="dashboardView"
+            >
 
-                    <p>
-                        Connect your databases, ask questions in natural
-                        language, and get instant insights from your business data.
-                    </p>
+
+                <!-- =================================================
+                     FEATURE CARDS
+                ================================================== -->
+
+                <div class="feature-row">
+
+
+                    <button
+                        class="feature-card"
+                        data-view-target="ask"
+                        type="button"
+                    >
+
+                        <span class="feature-icon">
+
+                            <i class="bi bi-lightbulb"></i>
+
+                        </span>
+
+                        <span>
+
+                            <strong>
+                                Ask AI
+                            </strong>
+
+                            <small>
+                                Ask questions about connected data
+                            </small>
+
+                        </span>
+
+                    </button>
+
+
+                    <button
+                        class="feature-card"
+                        data-view-target="documents"
+                        type="button"
+                    >
+
+                        <span class="feature-icon">
+
+                            <i class="bi bi-file-earmark-text"></i>
+
+                        </span>
+
+                        <span>
+
+                            <strong>
+                                Documents
+                            </strong>
+
+                            <small>
+                                Search and analyze connected files
+                            </small>
+
+                        </span>
+
+                    </button>
+
+
+                    <button
+                        class="feature-card"
+                        data-view-target="reports"
+                        type="button"
+                    >
+
+                        <span class="feature-icon">
+
+                            <i class="bi bi-bar-chart-line"></i>
+
+                        </span>
+
+                        <span>
+
+                            <strong>
+                                Reports
+                            </strong>
+
+                            <small>
+                                Generate reports from available data
+                            </small>
+
+                        </span>
+
+                    </button>
+
+
+                    <button
+                        class="feature-card"
+                        data-view-target="insights"
+                        type="button"
+                    >
+
+                        <span class="feature-icon">
+
+                            <i class="bi bi-graph-up-arrow"></i>
+
+                        </span>
+
+                        <span>
+
+                            <strong>
+                                Insights
+                            </strong>
+
+                            <small>
+                                Get AI-generated business insights
+                            </small>
+
+                        </span>
+
+                    </button>
+
+
+                    <button
+                        class="feature-card"
+                        data-view-target="tasks"
+                        type="button"
+                    >
+
+                        <span class="feature-icon">
+
+                            <i class="bi bi-calendar-check"></i>
+
+                        </span>
+
+                        <span>
+
+                            <strong>
+                                Tasks
+                            </strong>
+
+                            <small>
+                                Track and manage AI tasks
+                            </small>
+
+                        </span>
+
+                    </button>
 
                 </div>
 
 
-                <div class="database-illustration">
+                <!-- =================================================
+                     DASHBOARD LAYOUT
+                ================================================== -->
 
-                    <div class="db-icon floating-icon postgres">
-                        <i class="bi bi-database-fill"></i>
+                <div class="dashboard-layout">
+
+
+                    <!-- =================================================
+                         DASHBOARD MAIN
+                    ================================================== -->
+
+                    <div class="dashboard-main">
+
+
+                        <!-- =================================================
+                             BUSINESS OVERVIEW
+                        ================================================== -->
+
+                        <section class="panel overview-panel">
+
+                            <div class="panel-heading">
+
+                                <div>
+
+                                    <h3>
+                                        Business Overview
+                                    </h3>
+
+                                    <p>
+                                        Connect your data sources to
+                                        view business metrics.
+                                    </p>
+
+                                </div>
+
+
+                                <select id="overviewRange">
+
+                                    <option value="month">
+                                        This Month
+                                    </option>
+
+                                    <option value="last-month">
+                                        Last Month
+                                    </option>
+
+                                    <option value="quarter">
+                                        This Quarter
+                                    </option>
+
+                                    <option value="year">
+                                        This Year
+                                    </option>
+
+                                </select>
+
+                            </div>
+
+
+                            <div class="metric-grid">
+
+
+                                <!-- REVENUE -->
+
+                                <article class="metric-card">
+
+                                    <span>
+                                        Total Revenue
+                                    </span>
+
+                                    <strong id="totalRevenue">
+                                        —
+                                    </strong>
+
+                                    <small id="revenueChange">
+                                        Waiting for connected data
+                                    </small>
+
+                                    <div class="mini-chart revenue-chart"></div>
+
+                                </article>
+
+
+                                <!-- ORDERS -->
+
+                                <article class="metric-card">
+
+                                    <span>
+                                        Total Orders
+                                    </span>
+
+                                    <strong id="totalOrders">
+                                        —
+                                    </strong>
+
+                                    <small id="ordersChange">
+                                        Waiting for connected data
+                                    </small>
+
+                                    <div class="mini-chart orders-chart"></div>
+
+                                </article>
+
+
+                                <!-- CLIENTS -->
+
+                                <article class="metric-card">
+
+                                    <span>
+                                        Active Clients
+                                    </span>
+
+                                    <strong id="activeClients">
+                                        —
+                                    </strong>
+
+                                    <small id="clientsChange">
+                                        Waiting for connected data
+                                    </small>
+
+                                    <div class="mini-chart clients-chart"></div>
+
+                                </article>
+
+
+                                <!-- TASKS -->
+
+                                <article class="metric-card">
+
+                                    <span>
+                                        Pending Tasks
+                                    </span>
+
+                                    <strong id="pendingTasks">
+                                        —
+                                    </strong>
+
+                                    <small id="tasksChange">
+                                        Waiting for connected data
+                                    </small>
+
+                                    <div class="mini-chart tasks-chart"></div>
+
+                                </article>
+
+                            </div>
+
+                        </section>
+
+
+                        <!-- =================================================
+                             DOCUMENTS + INSIGHTS
+                        ================================================== -->
+
+                        <div class="two-panel-grid">
+
+
+                            <!-- RECENT DOCUMENTS -->
+
+                            <section class="panel">
+
+                                <div class="panel-heading">
+
+                                    <h3>
+                                        Recent Documents
+                                    </h3>
+
+                                    <button
+                                        class="text-link"
+                                        data-view-target="documents"
+                                        type="button"
+                                    >
+                                        View all
+                                    </button>
+
+                                </div>
+
+
+                                <div
+                                    class="document-list empty-state"
+                                    id="recentDocuments"
+                                >
+
+                                    <i class="bi bi-file-earmark"></i>
+
+                                    <strong>
+                                        No documents available
+                                    </strong>
+
+                                    <span>
+                                        Add a document source to begin
+                                        searching your files.
+                                    </span>
+
+                                </div>
+
+                            </section>
+
+
+                            <!-- QUICK INSIGHTS -->
+
+                            <section class="panel">
+
+                                <div class="panel-heading">
+
+                                    <h3>
+                                        Quick Insights
+                                    </h3>
+
+                                    <button
+                                        class="text-link"
+                                        data-view-target="insights"
+                                        type="button"
+                                    >
+                                        View all
+                                    </button>
+
+                                </div>
+
+
+                                <div
+                                    class="insight-list empty-state"
+                                    id="quickInsights"
+                                >
+
+                                    <i class="bi bi-graph-up"></i>
+
+                                    <strong>
+                                        No insights available
+                                    </strong>
+
+                                    <span>
+                                        Insights will appear after
+                                        business data is connected.
+                                    </span>
+
+                                </div>
+
+                            </section>
+
+                        </div>
+
+
+                        <!-- =================================================
+                             DATA SOURCES
+                        ================================================== -->
+
+                        <section class="panel sources-panel">
+
+                            <div class="panel-heading">
+
+                                <div>
+
+                                    <h3>
+                                        Data Sources
+                                    </h3>
+
+                                    <p>
+                                        Connect databases, files, folders
+                                        and business systems.
+                                    </p>
+
+                                </div>
+
+
+                                <button
+                                    class="source-button"
+                                    id="addSourceButton"
+                                    type="button"
+                                >
+
+                                    <i class="bi bi-plus-lg"></i>
+
+                                    Add New Source
+
+                                </button>
+
+                            </div>
+
+
+                            <div class="source-grid">
+
+
+                                <!-- DATABASE -->
+
+                                <button
+                                    class="source-stat"
+                                    data-view-target="databases"
+                                    type="button"
+                                >
+
+                                    <i class="bi bi-database"></i>
+
+                                    <span>
+
+                                        <strong id="databaseCount">
+                                            0
+                                        </strong>
+
+                                        <small>
+                                            Databases<br>
+                                            Connected
+                                        </small>
+
+                                    </span>
+
+                                </button>
+
+
+                                <!-- DOCUMENTS -->
+
+                                <button
+                                    class="source-stat"
+                                    data-view-target="documents"
+                                    type="button"
+                                >
+
+                                    <i class="bi bi-file-earmark"></i>
+
+                                    <span>
+
+                                        <strong id="documentCount">
+                                            0
+                                        </strong>
+
+                                        <small>
+                                            Files<br>
+                                            Documents
+                                        </small>
+
+                                    </span>
+
+                                </button>
+
+
+                                <!-- REPORTS -->
+
+                                <button
+                                    class="source-stat"
+                                    data-view-target="reports"
+                                    type="button"
+                                >
+
+                                    <i class="bi bi-bar-chart"></i>
+
+                                    <span>
+
+                                        <strong id="reportCount">
+                                            0
+                                        </strong>
+
+                                        <small>
+                                            Reports<br>
+                                            Generated
+                                        </small>
+
+                                    </span>
+
+                                </button>
+
+
+                                <!-- INTEGRATIONS -->
+
+                                <button
+                                    class="source-stat"
+                                    data-view-target="integrations"
+                                    type="button"
+                                >
+
+                                    <i class="bi bi-diagram-3"></i>
+
+                                    <span>
+
+                                        <strong id="integrationCount">
+                                            0
+                                        </strong>
+
+                                        <small>
+                                            Integrations<br>
+                                            Active
+                                        </small>
+
+                                    </span>
+
+                                </button>
+
+                            </div>
+
+                        </section>
+
+
+                        <!-- =================================================
+                             ASK AI
+                        ================================================== -->
+
+                        <section
+                            class="panel ask-panel"
+                            id="askSection"
+                        >
+
+                            <div class="panel-heading">
+
+                                <div>
+
+                                    <h3>
+                                        Ask anything about your business
+                                    </h3>
+
+                                    <p id="selectedSourceLabel">
+                                        AI can use your connected data
+                                        sources to answer questions.
+                                    </p>
+
+                                </div>
+
+
+                                <span class="live-pill">
+
+                                    <i></i>
+
+                                    Live AI
+
+                                </span>
+
+                            </div>
+
+
+                            <!-- DATABASE PICKER -->
+
+                            <div class="database-picker-row">
+
+                                <label for="databaseSelect">
+                                    Database
+                                </label>
+
+                                <select id="databaseSelect">
+
+                                    <option value="">
+                                        No database connected
+                                    </option>
+
+                                </select>
+
+
+                                <button
+                                    id="viewSchemaBtn"
+                                    class="small-button"
+                                    type="button"
+                                >
+
+                                    <i class="bi bi-table"></i>
+
+                                    Schema
+
+                                </button>
+
+                            </div>
+
+
+                            <!-- QUESTION -->
+
+                            <div class="question-box">
+
+                                <textarea
+                                    id="question"
+                                    rows="2"
+                                    placeholder="Ask anything about your connected business data or documents..."
+                                ></textarea>
+
+
+                                <div class="question-actions">
+
+                                    <button
+                                        class="input-action"
+                                        id="attachButton"
+                                        type="button"
+                                        title="Attach document"
+                                    >
+
+                                        <i class="bi bi-paperclip"></i>
+
+                                    </button>
+
+
+                                    <button
+                                        class="input-action"
+                                        id="inlineVoiceBtn"
+                                        type="button"
+                                        title="Voice input"
+                                    >
+
+                                        <i class="bi bi-mic"></i>
+
+                                    </button>
+
+
+                                    <button
+                                        class="send-button"
+                                        id="askBtn"
+                                        type="button"
+                                        title="Ask AI"
+                                    >
+
+                                        <i class="bi bi-send-fill"></i>
+
+                                    </button>
+
+                                </div>
+
+                            </div>
+
+
+                            <!-- LOADING -->
+
+                            <div
+                                id="loading"
+                                class="loading-area d-none"
+                            >
+
+                                <span class="spinner-border spinner-border-sm"></span>
+
+                                <span>
+                                    Analyzing your connected data...
+                                </span>
+
+                            </div>
+
+
+                            <!-- ANSWER -->
+
+                            <div class="answer-card">
+
+                                <div class="answer-card-head">
+
+                                    <div class="assistant-small-avatar">
+
+                                        <i class="bi bi-stars"></i>
+
+                                    </div>
+
+                                    <div>
+
+                                        <strong>
+                                            AI Assistant
+                                        </strong>
+
+                                        <small>
+                                            Ready to help
+                                        </small>
+
+                                    </div>
+
+                                </div>
+
+
+                                <div
+                                    id="answer"
+                                    class="answer-content"
+                                >
+                                    Connect a data source and ask a
+                                    question to get an answer.
+                                </div>
+
+                            </div>
+
+
+                            <!-- GENERATED SQL -->
+
+                            <div
+                                id="sqlSection"
+                                class="result-box d-none"
+                            >
+
+                                <div class="result-title">
+
+                                    <i class="bi bi-code-slash"></i>
+
+                                    Generated SQL
+
+                                </div>
+
+                                <pre id="sqlBox"></pre>
+
+                            </div>
+
+
+                            <!-- QUERY RESULTS -->
+
+                            <div
+                                id="tableSection"
+                                class="result-box d-none"
+                            >
+
+                                <div class="result-title">
+
+                                    <i class="bi bi-table"></i>
+
+                                    Query Results
+
+                                </div>
+
+
+                                <div class="table-wrap">
+
+                                    <table>
+
+                                        <thead>
+
+                                            <tr id="tableHead"></tr>
+
+                                        </thead>
+
+                                        <tbody id="tableBody"></tbody>
+
+                                    </table>
+
+                                </div>
+
+                            </div>
+
+                        </section>
+
                     </div>
 
-                    <div class="db-icon floating-icon mysql">
-                        <i class="bi bi-database-fill"></i>
-                    </div>
 
-                    <div class="db-cylinder">
-                        <i class="bi bi-database-fill"></i>
-                    </div>
+                    <!-- =================================================
+                         RIGHT AI EMPLOYEE
+                    ================================================== -->
 
-                    <div class="plus-icon plus-one">+</div>
-                    <div class="plus-icon plus-two">+</div>
+                    <aside class="assistant-column">
+
+
+                        <section class="live-assistant-card">
+
+
+                            <!-- HEADER -->
+
+                            <div class="assistant-card-top">
+
+                                <div>
+
+                                    <span class="online-dot"></span>
+
+                                    Live Assistant
+
+                                </div>
+
+
+                                <button
+                                    class="plain-icon"
+                                    type="button"
+                                    title="Assistant options"
+                                >
+
+                                    <i class="bi bi-three-dots-vertical"></i>
+
+                                </button>
+
+                            </div>
+
+
+                            <!-- AI EMPLOYEE PORTRAIT -->
+
+                            <div class="assistant-portrait">
+
+                                <div class="portrait-glow"></div>
+
+
+                                <img
+                                    src="/static/ai_employee.png"
+                                    alt="AI Assistant"
+                                    class="assistant-avatar"
+                                    onerror="
+                                        this.style.display='none';
+                                        this.nextElementSibling.classList.add('show');
+                                    "
+                                >
+
+
+                                <div class="portrait-fallback">
+
+                                    <i class="bi bi-person-fill"></i>
+
+                                </div>
+
+                            </div>
+
+
+                            <!-- GREETING -->
+
+                            <div class="assistant-greeting">
+
+                                <strong>
+                                    Hi! I'm your AI Assistant.
+                                </strong>
+
+                                <span>
+                                    How can I help you today?
+                                </span>
+
+                            </div>
+
+
+                            <!-- VOICE CONTROLS -->
+
+                            <div class="voice-controls">
+
+
+                                <button
+                                    id="speakToggle"
+                                    class="round-control"
+                                    type="button"
+                                    title="Voice response"
+                                >
+
+                                    <i class="bi bi-volume-up"></i>
+
+                                </button>
+
+
+                                <button
+                                    id="voiceBtn"
+                                    class="big-mic"
+                                    type="button"
+                                    title="Speak"
+                                >
+
+                                    <i class="bi bi-mic-fill"></i>
+
+                                </button>
+
+
+                                <button
+                                    id="voiceKeyboard"
+                                    class="round-control"
+                                    type="button"
+                                    title="Keyboard"
+                                >
+
+                                    <i class="bi bi-keyboard"></i>
+
+                                </button>
+
+                            </div>
+
+
+                            <!-- LANGUAGE -->
+
+                            <select
+                                id="assistantLanguage"
+                                class="assistant-language"
+                            >
+
+                                <option value="en-US">
+                                    🌐 English (US)
+                                </option>
+
+                                <option value="hi-IN">
+                                    🌐 Hindi
+                                </option>
+
+                                <option value="ta-IN">
+                                    🌐 Tamil
+                                </option>
+
+                            </select>
+
+
+                            <!-- CHAT TABS -->
+
+                            <div class="chat-tabs">
+
+                                <button
+                                    class="chat-tab active"
+                                    data-tab="chat"
+                                    type="button"
+                                >
+                                    Chat
+                                </button>
+
+                                <button
+                                    class="chat-tab"
+                                    data-tab="history"
+                                    type="button"
+                                >
+                                    History
+                                </button>
+
+                            </div>
+
+
+                            <!-- CHAT WINDOW -->
+
+                            <div
+                                class="chat-window"
+                                id="chatWindow"
+                            >
+
+                                <div class="empty-state">
+
+                                    <i class="bi bi-chat-dots"></i>
+
+                                    <strong>
+                                        No conversation yet
+                                    </strong>
+
+                                    <span>
+                                        Ask the AI Assistant a question
+                                        to start a conversation.
+                                    </span>
+
+                                </div>
+
+                            </div>
+
+
+                            <!-- FEEDBACK -->
+
+                            <div class="chat-feedback">
+
+                                <button
+                                    type="button"
+                                    title="Helpful"
+                                >
+
+                                    <i class="bi bi-hand-thumbs-up"></i>
+
+                                </button>
+
+
+                                <button
+                                    type="button"
+                                    title="Not helpful"
+                                >
+
+                                    <i class="bi bi-hand-thumbs-down"></i>
+
+                                </button>
+
+
+                                <button
+                                    type="button"
+                                    title="Copy response"
+                                >
+
+                                    <i class="bi bi-copy"></i>
+
+                                </button>
+
+
+                                <button
+                                    type="button"
+                                    title="Download response"
+                                >
+
+                                    <i class="bi bi-download"></i>
+
+                                </button>
+
+                            </div>
+
+
+                            <!-- CHAT INPUT -->
+
+                            <div class="chat-input">
+
+                                <input
+                                    id="chatInput"
+                                    type="text"
+                                    placeholder="Type your message..."
+                                >
+
+
+                                <button
+                                    id="chatSend"
+                                    type="button"
+                                    title="Send message"
+                                >
+
+                                    <i class="bi bi-send-fill"></i>
+
+                                </button>
+
+                            </div>
+
+                        </section>
+
+                    </aside>
 
                 </div>
 
@@ -213,779 +1461,622 @@
 
 
             <!-- =================================================
-                 TWO COLUMN DASHBOARD
+                 CONVERSATIONS
             ================================================== -->
 
-            <div class="dashboard-grid">
+            <section
+                class="view hidden-view"
+                id="conversationsView"
+            >
+
+                <div class="page-panel">
+
+                    <div class="page-title">
+
+                        <div>
+
+                            <h2>
+                                Conversations
+                            </h2>
+
+                            <p>
+                                Your previous AI conversations
+                                and answers.
+                            </p>
+
+                        </div>
+
+                    </div>
 
 
-                <!-- LEFT COLUMN -->
+                    <div
+                        id="conversationList"
+                        class="empty-state"
+                    >
 
-                <div class="left-column">
+                        <i class="bi bi-chat-square-text"></i>
+
+                        <strong>
+                            No conversations yet.
+                        </strong>
+
+                        <span>
+                            Ask a question to start a conversation.
+                        </span>
+
+                    </div>
+
+                </div>
+
+            </section>
 
 
-                    <!-- DATABASES -->
+            <!-- =================================================
+                 DOCUMENTS
+            ================================================== -->
 
-                    <section class="dashboard-card" id="databaseSection">
+            <section
+                class="view hidden-view"
+                id="documentsView"
+            >
 
-                        <div class="card-header">
+                <div class="page-panel">
 
-                            <div class="card-title">
+                    <div class="page-title">
 
-                                <div class="title-icon">
-                                    <i class="bi bi-database-fill"></i>
-                                </div>
+                        <div>
 
-                                <h2>Your Databases</h2>
+                            <h2>
+                                Documents
+                            </h2>
 
-                            </div>
-
-
-                            <button
-    type="button"
-    class="primary-button"
-    id="addDatabaseBtn"
-    data-bs-toggle="modal"
-    data-bs-target="#databaseModal"
->
-    <i class="bi bi-plus-lg"></i>
-    Add Database
-</button>
+                            <p>
+                                Search PDFs, Word files, Excel
+                                sheets, CSVs and archived files
+                                from configured locations.
+                            </p>
 
                         </div>
 
 
-                        <div class="database-list" id="databaseList">
+                        <button
+                            class="primary-action"
+                            id="documentSourceButton"
+                            type="button"
+                        >
 
-                            <!-- Database 1 -->
+                            <i class="bi bi-folder-plus"></i>
 
-                            <div
-                                class="database-item selected"
-                                data-db-id="sales"
-                                data-db-name="Sales Database"
-                                data-db-type="PostgreSQL"
-                                data-db-host="db.company.com"
-                                data-db-port="5432"
-                                data-db-database="sales_db"
-                                data-db-username="admin"
-                            >
+                            Add document source
 
-                                <div class="database-logo postgres-logo">
-                                    <i class="bi bi-database-fill"></i>
-                                </div>
+                        </button>
 
-                                <div class="database-info">
-
-                                    <strong>Sales Database</strong>
-
-                                    <span>PostgreSQL</span>
-
-                                </div>
-
-                                <div class="database-status connected">
-                                    <span></span>
-                                    Connected
-                                </div>
-
-                                <button class="more-button">
-                                    <i class="bi bi-three-dots"></i>
-                                </button>
-
-                            </div>
+                    </div>
 
 
-                            <!-- Database 2 -->
+                    <div class="document-toolbar">
 
-                            <div
-                                class="database-item"
-                                data-db-id="hr"
-                                data-db-name="HR Database"
-                                data-db-type="MySQL"
-                                data-db-host="hr.company.com"
-                                data-db-port="3306"
-                                data-db-database="hr_db"
-                                data-db-username="admin"
-                            >
-
-                                <div class="database-logo mysql-logo">
-                                    <i class="bi bi-database-fill"></i>
-                                </div>
-
-                                <div class="database-info">
-
-                                    <strong>HR Database</strong>
-
-                                    <span>MySQL</span>
-
-                                </div>
-
-                                <div class="database-status connected">
-                                    <span></span>
-                                    Connected
-                                </div>
-
-                                <button class="more-button">
-                                    <i class="bi bi-three-dots"></i>
-                                </button>
-
-                            </div>
+                        <input
+                            id="documentSearch"
+                            placeholder="Search connected documents..."
+                        >
 
 
-                            <!-- Database 3 -->
+                        <select id="documentTypeFilter">
 
-                            <div
-                                class="database-item"
-                                data-db-id="finance"
-                                data-db-name="Finance DB"
-                                data-db-type="SQL Server"
-                                data-db-host="finance.company.com"
-                                data-db-port="1433"
-                                data-db-database="finance_db"
-                                data-db-username="admin"
-                            >
+                            <option value="">
+                                All file types
+                            </option>
 
-                                <div class="database-logo sqlserver-logo">
-                                    <i class="bi bi-database-fill"></i>
-                                </div>
+                            <option value="pdf">
+                                PDF
+                            </option>
 
-                                <div class="database-info">
+                            <option value="excel">
+                                Excel
+                            </option>
 
-                                    <strong>Finance DB</strong>
+                            <option value="word">
+                                Word
+                            </option>
 
-                                    <span>SQL Server</span>
+                            <option value="csv">
+                                CSV
+                            </option>
 
-                                </div>
+                            <option value="archive">
+                                Archives
+                            </option>
 
-                                <div class="database-status connected">
-                                    <span></span>
-                                    Connected
-                                </div>
+                        </select>
 
-                                <button class="more-button">
-                                    <i class="bi bi-three-dots"></i>
-                                </button>
-
-                            </div>
+                    </div>
 
 
-                            <!-- Database 4 -->
+                    <div
+                        class="document-library empty-state"
+                        id="documentLibrary"
+                    >
 
-                            <div
-                                class="database-item"
-                                data-db-id="marketing"
-                                data-db-name="Marketing DB"
-                                data-db-type="Oracle"
-                                data-db-host="oracle.company.com"
-                                data-db-port="1521"
-                                data-db-database="marketing_db"
-                                data-db-username="admin"
-                            >
+                        <i class="bi bi-folder2-open"></i>
 
-                                <div class="database-logo oracle-logo">
-                                    <i class="bi bi-database-fill"></i>
-                                </div>
+                        <strong>
+                            No documents available
+                        </strong>
 
-                                <div class="database-info">
+                        <span>
+                            Add a document source to configure a
+                            folder, Excel file, CSV, PDF, Word file
+                            or archive for the AI employee.
+                        </span>
 
-                                    <strong>Marketing DB</strong>
+                    </div>
 
-                                    <span>Oracle</span>
+                </div>
 
-                                </div>
-
-                                <div class="database-status disconnected">
-                                    <span></span>
-                                    Disconnected
-                                </div>
-
-                                <button class="more-button">
-                                    <i class="bi bi-three-dots"></i>
-                                </button>
-
-                            </div>
+            </section>
 
 
-                            <!-- Database 5 -->
+            <!-- =================================================
+                 REPORTS
+            ================================================== -->
 
-                            <div
-                                class="database-item"
-                                data-db-id="customer"
-                                data-db-name="Customer DB"
-                                data-db-type="PostgreSQL"
-                                data-db-host="customer.company.com"
-                                data-db-port="5432"
-                                data-db-database="customer_db"
-                                data-db-username="admin"
-                            >
+            <section
+                class="view hidden-view"
+                id="reportsView"
+            >
 
-                                <div class="database-logo postgres-logo">
-                                    <i class="bi bi-database-fill"></i>
-                                </div>
+                <div class="page-panel">
 
-                                <div class="database-info">
+                    <div class="page-title">
 
-                                    <strong>Customer DB</strong>
+                        <div>
 
-                                    <span>PostgreSQL</span>
+                            <h2>
+                                Reports &amp; Analytics
+                            </h2>
 
-                                </div>
-
-                                <div class="database-status connected">
-                                    <span></span>
-                                    Connected
-                                </div>
-
-                                <button class="more-button">
-                                    <i class="bi bi-three-dots"></i>
-                                </button>
-
-                            </div>
+                            <p>
+                                Business reports generated from
+                                your connected data.
+                            </p>
 
                         </div>
 
-                    </section>
+                    </div>
 
 
-                    <!-- ASK AI -->
+                    <div
+                        class="report-grid empty-state"
+                        id="reportGrid"
+                    >
 
-                    <section class="dashboard-card ask-card" id="askSection">
+                        <i class="bi bi-bar-chart"></i>
 
-                        <div class="card-header">
+                        <strong>
+                            No reports available
+                        </strong>
 
-                            <div class="card-title">
+                        <span>
+                            Reports will appear here after
+                            connected business data is available.
+                        </span>
 
-                                <div class="title-icon chat-icon">
-                                    <i class="bi bi-chat-dots-fill"></i>
-                                </div>
+                    </div>
 
-                                <h2>Ask Your Question</h2>
+                </div>
 
-                            </div>
+            </section>
 
 
-                            <div class="language-control">
+            <!-- =================================================
+                 INSIGHTS
+            ================================================== -->
 
-                                <i class="bi bi-globe2"></i>
+            <section
+                class="view hidden-view"
+                id="insightsView"
+            >
 
-                                <select id="languageSelect">
+                <div class="page-panel">
 
-                                    <option value="en-US">
-                                        English
-                                    </option>
+                    <div class="page-title">
 
-                                    <option value="hi-IN">
-                                        Hindi
-                                    </option>
+                        <div>
 
-                                    <option value="ta-IN">
-                                        Tamil
-                                    </option>
+                            <h2>
+                                Data Insights
+                            </h2>
 
-                                </select>
-
-                                <i class="bi bi-chevron-down"></i>
-
-                            </div>
+                            <p>
+                                AI-generated observations from
+                                your business information.
+                            </p>
 
                         </div>
 
+                    </div>
 
-                        <!-- Selected Database -->
 
-                        <div class="selected-database-mini">
+                    <div
+                        class="insight-board empty-state"
+                        id="insightBoard"
+                    >
 
-                            <i class="bi bi-database-fill"></i>
+                        <i class="bi bi-graph-up-arrow"></i>
 
-                            <span>
-                                Asking about:
-                            </span>
+                        <strong>
+                            No insights available
+                        </strong>
 
-                            <strong id="selectedDatabaseName">
-                                Sales Database
+                        <span>
+                            Connect your business sources to allow
+                            the AI employee to generate insights.
+                        </span>
+
+                    </div>
+
+                </div>
+
+            </section>
+
+
+            <!-- =================================================
+                 KNOWLEDGE BASE
+            ================================================== -->
+
+            <section
+                class="view hidden-view"
+                id="knowledgeView"
+            >
+
+                <div class="page-panel">
+
+                    <div class="page-title">
+
+                        <div>
+
+                            <h2>
+                                Knowledge Base
+                            </h2>
+
+                            <p>
+                                Organize the information your AI
+                                employee should use when answering
+                                questions.
+                            </p>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="knowledge-box">
+
+                        <i class="bi bi-book"></i>
+
+                        <h3>
+                            Business knowledge
+                        </h3>
+
+                        <p>
+                            Add document folders, files and archives
+                            to build a searchable knowledge source.
+                        </p>
+
+                        <button
+                            class="primary-action"
+                            data-view-target="documents"
+                            type="button"
+                        >
+
+                            Manage documents
+
+                        </button>
+
+                    </div>
+
+                </div>
+
+            </section>
+
+
+            <!-- =================================================
+                 INTEGRATIONS
+            ================================================== -->
+
+            <section
+                class="view hidden-view"
+                id="integrationsView"
+            >
+
+                <div class="page-panel">
+
+                    <div class="page-title">
+
+                        <div>
+
+                            <h2>
+                                Integrations
+                            </h2>
+
+                            <p>
+                                Connect business systems to your
+                                AI employee.
+                            </p>
+
+                        </div>
+
+                    </div>
+
+
+                    <div
+                        class="integration-grid"
+                        id="integrationGrid"
+                    >
+
+                        <div class="integration-card">
+
+                            <i class="bi bi-database"></i>
+
+                            <strong>
+                                Databases
                             </strong>
 
-                            <span class="mini-status">
-                                <i class="bi bi-circle-fill"></i>
-                                Connected
+                            <span>
+                                Connect SQL databases and
+                                query structured business data.
                             </span>
 
                         </div>
 
 
-                        <!-- Sample Questions -->
+                        <div class="integration-card">
 
-                        <div class="sample-buttons">
+                            <i class="bi bi-folder2-open"></i>
 
-                            <button class="sample-question">
-                                Show today's sales
-                            </button>
-
-                            <button class="sample-question">
-                                Top customers
-                            </button>
-
-                            <button class="sample-question">
-                                Top products
-                            </button>
-
-                            <button class="sample-question">
-                                Total sales
-                            </button>
-
-                        </div>
-
-
-                        <!-- Question Input -->
-
-                        <div class="question-box">
-
-                            <textarea
-                                id="question"
-                                rows="2"
-                                autocomplete="off"
-                                placeholder="Ask anything about your selected database..."
-                            ></textarea>
-
-
-                            <div class="question-actions">
-
-                                <button
-                                    type="button"
-                                    class="input-icon-button"
-                                    title="Attach"
-                                >
-                                    <i class="bi bi-paperclip"></i>
-                                </button>
-
-
-                                <button
-                                    type="button"
-                                    class="input-icon-button"
-                                    id="inlineVoiceBtn"
-                                    title="Voice input"
-                                >
-                                    <i class="bi bi-mic"></i>
-                                </button>
-
-
-                                <button
-                                    type="button"
-                                    class="send-button"
-                                    id="askBtn"
-                                    title="Ask AI"
-                                >
-                                    <i class="bi bi-send-fill"></i>
-                                </button>
-
-                            </div>
-
-                        </div>
-
-
-                        <!-- Loading -->
-
-                        <div
-                            id="loading"
-                            class="loading-area d-none"
-                        >
-
-                            <div class="spinner-border"></div>
+                            <strong>
+                                File locations
+                            </strong>
 
                             <span>
-                                Analyzing your data...
+                                Connect server folders, Excel,
+                                PDFs, CSVs and archives.
                             </span>
 
                         </div>
 
 
-                        <!-- AI Answer -->
+                        <div class="integration-card">
 
-                        <div class="answer-container">
+                            <i class="bi bi-envelope"></i>
 
-                            <div class="answer-header">
+                            <strong>
+                                Email
+                            </strong>
 
-                                <div class="answer-ai-icon">
-                                    <i class="bi bi-robot"></i>
-                                </div>
-
-                                <div>
-
-                                    <strong>AI Assistant</strong>
-
-                                    <span>Ready when you are!</span>
-
-                                </div>
-
-                            </div>
-
-
-                            <div
-                                id="answer"
-                                class="answer-box"
-                            >
-                                Select a database and ask a question
-                                to get insights from your data.
-                            </div>
+                            <span>
+                                Email integration can be connected
+                                for future assisted workflows.
+                            </span>
 
                         </div>
 
-
-                        <!-- SQL -->
-
-                        <div
-                            id="sqlSection"
-                            class="result-section d-none"
-                        >
-
-                            <div class="result-title">
-                                <i class="bi bi-code-slash"></i>
-                                Generated SQL
-                            </div>
-
-                            <pre id="sqlBox"></pre>
-
-                        </div>
-
-
-                        <!-- Results Table -->
-
-                        <div
-                            id="tableSection"
-                            class="result-section d-none"
-                        >
-
-                            <div class="result-title">
-                                <i class="bi bi-table"></i>
-                                Query Results
-                            </div>
-
-                            <div class="table-wrapper">
-
-                                <table class="custom-table">
-
-                                    <thead>
-                                        <tr id="tableHead"></tr>
-                                    </thead>
-
-                                    <tbody id="tableBody"></tbody>
-
-                                </table>
-
-                            </div>
-
-                        </div>
-
-                    </section>
+                    </div>
 
                 </div>
 
-
-                <!-- =================================================
-                     RIGHT COLUMN
-                ================================================== -->
-
-                <div class="right-column">
+            </section>
 
 
-                    <!-- SELECTED DATABASE -->
+            <!-- =================================================
+                 SETTINGS
+            ================================================== -->
 
-                    <section class="dashboard-card selected-card">
+            <section
+                class="view hidden-view"
+                id="settingsView"
+            >
 
-                        <div class="selected-card-header">
+                <div class="page-panel">
 
-                            <div>
-                                <i class="bi bi-globe2"></i>
-                                Selected Database
-                            </div>
+                    <div class="page-title">
 
-                            <span class="online-indicator"></span>
+                        <div>
 
-                        </div>
+                            <h2>
+                                Settings
+                            </h2>
 
-
-                        <div class="selected-db-main">
-
-                            <div class="large-db-logo postgres-logo">
-                                <i class="bi bi-database-fill"></i>
-                            </div>
-
-                            <div>
-
-                                <h3 id="detailDatabaseName">
-                                    Sales Database
-                                </h3>
-
-                                <p id="detailDatabaseType">
-                                    PostgreSQL
-                                </p>
-
-                                <div class="connection-badge">
-                                    <span></span>
-                                    Connected
-                                </div>
-
-                            </div>
-
-                            <i class="bi bi-chevron-right detail-arrow"></i>
+                            <p>
+                                Configure the assistant experience
+                                and data access.
+                            </p>
 
                         </div>
 
-
-                        <div class="database-information">
-
-                            <h4>Database Information</h4>
-
-                            <div class="info-row">
-                                <span>Host</span>
-                                <strong id="detailHost">
-                                    db.company.com
-                                </strong>
-                            </div>
-
-                            <div class="info-row">
-                                <span>Port</span>
-                                <strong id="detailPort">
-                                    5432
-                                </strong>
-                            </div>
-
-                            <div class="info-row">
-                                <span>Database</span>
-                                <strong id="detailDatabase">
-                                    sales_db
-                                </strong>
-                            </div>
-
-                            <div class="info-row">
-                                <span>Username</span>
-                                <strong id="detailUsername">
-                                    admin
-                                </strong>
-                            </div>
+                    </div>
 
 
-                            <button
-                                class="schema-link"
-                                id="viewSchemaBtn"
-                            >
-                                View Schema
-                            </button>
-
-                        </div>
-
-                    </section>
+                    <div class="settings-list">
 
 
-                    <!-- QUICK ACTIONS -->
+                        <label>
 
-                    <section class="dashboard-card">
+                            <span>
+                                Assistant language
+                            </span>
 
-                        <div class="card-header compact">
+                            <select id="settingsLanguage">
 
-                            <div class="card-title">
+                                <option value="en-US">
+                                    English
+                                </option>
 
-                                <h2>Quick Actions</h2>
+                                <option value="hi-IN">
+                                    Hindi
+                                </option>
 
-                            </div>
+                                <option value="ta-IN">
+                                    Tamil
+                                </option>
 
-                        </div>
+                            </select>
+
+                        </label>
 
 
-                        <div class="quick-actions">
+                        <label>
 
-                            <button
-                                class="quick-action"
-                                id="quickNewConnection"
+                            <span>
+                                Voice responses
+                            </span>
+
+                            <input
+                                type="checkbox"
+                                id="voiceResponseSetting"
+                                checked
                             >
 
-                                <div class="quick-icon">
-                                    <i class="bi bi-plus-lg"></i>
-                                </div>
-
-                                <div>
-                                    <strong>New Connection</strong>
-                                    <span>Add a new database</span>
-                                </div>
-
-                            </button>
+                        </label>
 
 
-                            <button class="quick-action">
+                        <label>
 
-                                <div class="quick-icon">
-                                    <i class="bi bi-database"></i>
-                                </div>
+                            <span>
+                                Show generated SQL
+                            </span>
 
-                                <div>
-                                    <strong>Manage Databases</strong>
-                                    <span>View & edit connections</span>
-                                </div>
-
-                            </button>
-
-
-                            <button
-                                class="quick-action"
-                                id="quickSchema"
+                            <input
+                                type="checkbox"
+                                id="showSqlSetting"
+                                checked
                             >
 
-                                <div class="quick-icon">
-                                    <i class="bi bi-table"></i>
-                                </div>
+                        </label>
 
-                                <div>
-                                    <strong>View Schema</strong>
-                                    <span>Explore database tables</span>
-                                </div>
-
-                            </button>
-
-
-                            <button class="quick-action">
-
-                                <div class="quick-icon">
-                                    <i class="bi bi-bookmark"></i>
-                                </div>
-
-                                <div>
-                                    <strong>Saved Queries</strong>
-                                    <span>Your past questions</span>
-                                </div>
-
-                            </button>
-
-                        </div>
-
-                    </section>
-
-
-                    <!-- RECENT QUERIES -->
-
-                    <section class="dashboard-card recent-card">
-
-                        <div class="card-header compact">
-
-                            <div class="card-title">
-
-                                <div class="title-icon small">
-                                    <i class="bi bi-clock-history"></i>
-                                </div>
-
-                                <h2>Recent Queries</h2>
-
-                            </div>
-
-                            <button class="view-all">
-                                View All
-                            </button>
-
-                        </div>
-
-
-                        <div class="recent-list" id="recentQueries">
-
-                            <div class="recent-item">
-
-                                <div class="recent-db-icon postgres-logo">
-                                    <i class="bi bi-database-fill"></i>
-                                </div>
-
-                                <div class="recent-content">
-
-                                    <strong>
-                                        What were our sales last month?
-                                    </strong>
-
-                                    <span>
-                                        <i class="bi bi-database-fill"></i>
-                                        Sales Database
-                                    </span>
-
-                                </div>
-
-                                <time>10:24 AM</time>
-
-                            </div>
-
-
-                            <div class="recent-item">
-
-                                <div class="recent-db-icon postgres-logo">
-                                    <i class="bi bi-database-fill"></i>
-                                </div>
-
-                                <div class="recent-content">
-
-                                    <strong>
-                                        Top 5 customers by revenue
-                                    </strong>
-
-                                    <span>
-                                        <i class="bi bi-database-fill"></i>
-                                        Sales Database
-                                    </span>
-
-                                </div>
-
-                                <time>09:50 AM</time>
-
-                            </div>
-
-
-                            <div class="recent-item">
-
-                                <div class="recent-db-icon mysql-logo">
-                                    <i class="bi bi-database-fill"></i>
-                                </div>
-
-                                <div class="recent-content">
-
-                                    <strong>
-                                        Total employees in HR
-                                    </strong>
-
-                                    <span>
-                                        <i class="bi bi-database-fill"></i>
-                                        HR Database
-                                    </span>
-
-                                </div>
-
-                                <time>Yesterday</time>
-
-                            </div>
-
-
-                            <div class="recent-item">
-
-                                <div class="recent-db-icon sqlserver-logo">
-                                    <i class="bi bi-database-fill"></i>
-                                </div>
-
-                                <div class="recent-content">
-
-                                    <strong>
-                                        Monthly revenue comparison
-                                    </strong>
-
-                                    <span>
-                                        <i class="bi bi-database-fill"></i>
-                                        Finance DB
-                                    </span>
-
-                                </div>
-
-                                <time>Yesterday</time>
-
-                            </div>
-
-                        </div>
-
-                    </section>
+                    </div>
 
                 </div>
 
-            </div>
+            </section>
+
+
+            <!-- =================================================
+                 TASKS
+            ================================================== -->
+
+            <section
+                class="view hidden-view"
+                id="tasksView"
+            >
+
+                <div class="page-panel">
+
+                    <div class="page-title">
+
+                        <div>
+
+                            <h2>
+                                Tasks
+                            </h2>
+
+                            <p>
+                                Track follow-ups and actions
+                                from your AI employee.
+                            </p>
+
+                        </div>
+
+                    </div>
+
+
+                    <div
+                        class="task-list empty-state"
+                        id="taskList"
+                    >
+
+                        <i class="bi bi-check2-circle"></i>
+
+                        <strong>
+                            No tasks available
+                        </strong>
+
+                        <span>
+                            Tasks created by the AI employee
+                            will appear here.
+                        </span>
+
+                    </div>
+
+                </div>
+
+            </section>
+
+
+            <!-- =================================================
+                 DATABASES
+            ================================================== -->
+
+            <section
+                class="view hidden-view"
+                id="databasesView"
+            >
+
+                <div class="page-panel">
+
+                    <div class="page-title">
+
+                        <div>
+
+                            <h2>
+                                Database Connections
+                            </h2>
+
+                            <p>
+                                Manage the databases used by
+                                the AI employee.
+                            </p>
+
+                        </div>
+
+
+                        <button
+                            class="primary-action"
+                            id="manageDatabaseButton"
+                            type="button"
+                        >
+
+                            <i class="bi bi-plus-lg"></i>
+
+                            Add database
+
+                        </button>
+
+                    </div>
+
+
+                    <div
+                        id="databaseManagementList"
+                        class="managed-database-list empty-state"
+                    >
+
+                        <i class="bi bi-database"></i>
+
+                        <strong>
+                            No databases connected
+                        </strong>
+
+                        <span>
+                            Add a database connection to allow
+                            the AI employee to query business data.
+                        </span>
+
+                    </div>
+
+                </div>
+
+            </section>
 
         </div>
 
@@ -995,283 +2086,213 @@
 
 
 <!-- =============================================================
-     ADD DATABASE MODAL
+     SOURCE MODAL
 ============================================================== -->
 
 <div
     class="modal fade"
-    id="databaseModal"
+    id="sourceModal"
     tabindex="-1"
     aria-hidden="true"
 >
 
     <div class="modal-dialog modal-dialog-centered modal-lg">
 
-        <div class="modal-content database-modal">
+        <div class="modal-content modern-modal">
+
+
+            <!-- MODAL HEADER -->
 
             <div class="modal-header">
 
                 <div>
 
                     <h3>
-                        <i class="bi bi-database-add"></i>
-                        Add Database
+
+                        <i class="bi bi-folder-plus"></i>
+
+                        Add data source
+
                     </h3>
 
                     <p>
-                        Connect a new business database to Enterprise AI.
+                        Choose where your AI employee should
+                        search for business information.
                     </p>
 
                 </div>
 
+
                 <button
-                    type="button"
                     class="btn-close"
                     data-bs-dismiss="modal"
+                    type="button"
                 ></button>
 
             </div>
 
 
+            <!-- MODAL BODY -->
+
             <div class="modal-body">
 
-                <div class="form-section-title">
-                    Database Type
-                </div>
 
+                <!-- SOURCE TYPES -->
 
-                <div class="database-type-grid">
+                <div class="source-type-grid">
+
 
                     <button
+                        class="source-type selected"
+                        data-source-type="folder"
                         type="button"
-                        class="database-type selected"
-                        data-type="PostgreSQL"
                     >
 
-                        <i class="bi bi-database-fill"></i>
+                        <i class="bi bi-folder2-open"></i>
 
-                        <strong>PostgreSQL</strong>
+                        <strong>
+                            Server folder
+                        </strong>
 
-                        <span>PostgreSQL database</span>
+                        <small>
+                            Search files in a configured folder
+                        </small>
 
                     </button>
 
 
                     <button
+                        class="source-type"
+                        data-source-type="excel"
                         type="button"
-                        class="database-type"
-                        data-type="MySQL"
                     >
 
-                        <i class="bi bi-database-fill"></i>
+                        <i class="bi bi-filetype-xlsx"></i>
 
-                        <strong>MySQL</strong>
+                        <strong>
+                            Excel / CSV
+                        </strong>
 
-                        <span>MySQL database</span>
+                        <small>
+                            Analyze spreadsheets and tabular files
+                        </small>
 
                     </button>
 
 
                     <button
+                        class="source-type"
+                        data-source-type="archive"
                         type="button"
-                        class="database-type"
-                        data-type="SQL Server"
                     >
 
-                        <i class="bi bi-database-fill"></i>
+                        <i class="bi bi-file-earmark-zip"></i>
 
-                        <strong>SQL Server</strong>
+                        <strong>
+                            Archive
+                        </strong>
 
-                        <span>Microsoft SQL Server</span>
+                        <small>
+                            Use ZIP and archived reference files
+                        </small>
 
                     </button>
 
 
                     <button
+                        class="source-type"
+                        data-source-type="database"
                         type="button"
-                        class="database-type"
-                        data-type="Oracle"
                     >
 
-                        <i class="bi bi-database-fill"></i>
+                        <i class="bi bi-database"></i>
 
-                        <strong>Oracle</strong>
+                        <strong>
+                            Database
+                        </strong>
 
-                        <span>Oracle database</span>
+                        <small>
+                            Connect a SQL business database
+                        </small>
 
                     </button>
 
                 </div>
 
 
-                <div class="form-section-title mt-4">
-                    Connection Details
-                </div>
+                <!-- SOURCE NAME -->
+
+                <label class="field-label">
+
+                    Source name
+
+                    <input
+                        id="sourceName"
+                        class="form-input"
+                        placeholder="Enter source name"
+                    >
+
+                </label>
 
 
-                <div class="row g-3">
+                <!-- SOURCE PATH -->
 
-                    <div class="col-md-12">
+                <label class="field-label">
 
-                        <label>
-                            Connection Name
-                        </label>
+                    Location / path
 
-                        <input
-                            type="text"
-                            id="connectionName"
-                            class="form-control custom-input"
-                            placeholder="Example: Sales Database"
-                        >
+                    <input
+                        id="sourcePath"
+                        class="form-input"
+                        placeholder="Enter server folder or file location"
+                    >
 
-                    </div>
+                </label>
 
 
-                    <div class="col-md-8">
+                <p class="source-note">
 
-                        <label>
-                            Host
-                        </label>
+                    <i class="bi bi-info-circle"></i>
 
-                        <input
-                            type="text"
-                            id="connectionHost"
-                            class="form-control custom-input"
-                            placeholder="database.company.com"
-                        >
+                    Select a server folder, Excel/CSV location,
+                    archive or other supported business source.
+                    The backend can index the configured location
+                    for AI document retrieval.
 
-                    </div>
-
-
-                    <div class="col-md-4">
-
-                        <label>
-                            Port
-                        </label>
-
-                        <input
-                            type="number"
-                            id="connectionPort"
-                            class="form-control custom-input"
-                            value="5432"
-                        >
-
-                    </div>
-
-
-                    <div class="col-md-6">
-
-                        <label>
-                            Database Name
-                        </label>
-
-                        <input
-                            type="text"
-                            id="connectionDatabase"
-                            class="form-control custom-input"
-                            placeholder="database_name"
-                        >
-
-                    </div>
-
-
-                    <div class="col-md-6">
-
-                        <label>
-                            Username
-                        </label>
-
-                        <input
-                            type="text"
-                            id="connectionUsername"
-                            class="form-control custom-input"
-                            placeholder="username"
-                        >
-
-                    </div>
-
-
-                    <div class="col-md-12">
-
-                        <label>
-                            Password
-                        </label>
-
-                        <div class="password-wrapper">
-
-                            <input
-                                type="password"
-                                id="connectionPassword"
-                                class="form-control custom-input"
-                                placeholder="Database password"
-                            >
-
-                            <button
-                                type="button"
-                                id="togglePassword"
-                            >
-                                <i class="bi bi-eye"></i>
-                            </button>
-
-                        </div>
-
-                    </div>
-
-                </div>
-
-
-                <div class="security-note">
-
-                    <i class="bi bi-shield-check"></i>
-
-                    <div>
-
-                        <strong>Your credentials are protected</strong>
-
-                        <span>
-                            Passwords should be encrypted before being stored
-                            and should never be displayed again.
-                        </span>
-
-                    </div>
-
-                </div>
+                </p>
 
 
                 <div
-                    id="connectionMessage"
-                    class="connection-message d-none"
+                    id="sourceMessage"
+                    class="source-message"
                 ></div>
 
             </div>
 
 
+            <!-- MODAL FOOTER -->
+
             <div class="modal-footer">
 
                 <button
-                    type="button"
                     class="secondary-button"
                     data-bs-dismiss="modal"
+                    type="button"
                 >
                     Cancel
                 </button>
 
-                <button
-                    type="button"
-                    class="test-button"
-                    id="testConnectionBtn"
-                >
-                    <i class="bi bi-plug"></i>
-                    Test Connection
-                </button>
 
                 <button
+                    class="primary-action"
+                    id="saveSourceButton"
                     type="button"
-                    class="primary-button"
-                    id="saveDatabaseBtn"
                 >
-                    <i class="bi bi-check-lg"></i>
-                    Save Database
+
+                    <i class="bi bi-check2"></i>
+
+                    Save source
+
                 </button>
 
             </div>
@@ -1283,13 +2304,319 @@
 </div>
 
 
-<!-- Bootstrap JS -->
+<!-- =============================================================
+     DATABASE MODAL
+============================================================== -->
+
+<div
+    class="modal fade"
+    id="databaseModal"
+    tabindex="-1"
+    aria-hidden="true"
+>
+
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+
+        <div class="modal-content modern-modal">
+
+
+            <!-- HEADER -->
+
+            <div class="modal-header">
+
+                <div>
+
+                    <h3>
+
+                        <i class="bi bi-database-add"></i>
+
+                        Add database
+
+                    </h3>
+
+                    <p>
+                        Connect a business database to your
+                        AI employee.
+                    </p>
+
+                </div>
+
+
+                <button
+                    class="btn-close"
+                    data-bs-dismiss="modal"
+                    type="button"
+                ></button>
+
+            </div>
+
+
+            <!-- BODY -->
+
+            <div class="modal-body">
+
+
+                <div class="form-section-title">
+                    Database Type
+                </div>
+
+
+                <div class="database-type-grid">
+
+
+                    <button
+                        class="database-type selected"
+                        data-type="PostgreSQL"
+                        type="button"
+                    >
+
+                        <i class="bi bi-database-fill"></i>
+
+                        <strong>
+                            PostgreSQL
+                        </strong>
+
+                        <small>
+                            PostgreSQL database
+                        </small>
+
+                    </button>
+
+
+                    <button
+                        class="database-type"
+                        data-type="MySQL"
+                        type="button"
+                    >
+
+                        <i class="bi bi-database-fill"></i>
+
+                        <strong>
+                            MySQL
+                        </strong>
+
+                        <small>
+                            MySQL database
+                        </small>
+
+                    </button>
+
+
+                    <button
+                        class="database-type"
+                        data-type="SQL Server"
+                        type="button"
+                    >
+
+                        <i class="bi bi-database-fill"></i>
+
+                        <strong>
+                            SQL Server
+                        </strong>
+
+                        <small>
+                            Microsoft SQL Server
+                        </small>
+
+                    </button>
+
+
+                    <button
+                        class="database-type"
+                        data-type="Oracle"
+                        type="button"
+                    >
+
+                        <i class="bi bi-database-fill"></i>
+
+                        <strong>
+                            Oracle
+                        </strong>
+
+                        <small>
+                            Oracle database
+                        </small>
+
+                    </button>
+
+                </div>
+
+
+                <div class="form-section-title">
+                    Connection Details
+                </div>
+
+
+                <div class="form-grid">
+
+
+                    <!-- CONNECTION NAME -->
+
+                    <label class="field-label full">
+
+                        Connection name
+
+                        <input
+                            id="connectionName"
+                            class="form-input"
+                            placeholder="Enter connection name"
+                        >
+
+                    </label>
+
+
+                    <!-- HOST -->
+
+                    <label class="field-label wide">
+
+                        Host
+
+                        <input
+                            id="connectionHost"
+                            class="form-input"
+                            placeholder="Database host"
+                        >
+
+                    </label>
+
+
+                    <!-- PORT -->
+
+                    <label class="field-label">
+
+                        Port
+
+                        <input
+                            id="connectionPort"
+                            type="number"
+                            class="form-input"
+                            placeholder="Port"
+                        >
+
+                    </label>
+
+
+                    <!-- DATABASE -->
+
+                    <label class="field-label">
+
+                        Database name
+
+                        <input
+                            id="connectionDatabase"
+                            class="form-input"
+                            placeholder="Database name"
+                        >
+
+                    </label>
+
+
+                    <!-- USERNAME -->
+
+                    <label class="field-label">
+
+                        Username
+
+                        <input
+                            id="connectionUsername"
+                            class="form-input"
+                            placeholder="Username"
+                        >
+
+                    </label>
+
+
+                    <!-- PASSWORD -->
+
+                    <label class="field-label full">
+
+                        Password
+
+                        <input
+                            id="connectionPassword"
+                            type="password"
+                            class="form-input"
+                            placeholder="Database password"
+                        >
+
+                    </label>
+
+                </div>
+
+
+                <div
+                    id="connectionMessage"
+                    class="connection-message"
+                ></div>
+
+            </div>
+
+
+            <!-- FOOTER -->
+
+            <div class="modal-footer">
+
+                <button
+                    class="secondary-button"
+                    data-bs-dismiss="modal"
+                    type="button"
+                >
+                    Cancel
+                </button>
+
+
+                <button
+                    class="test-button"
+                    id="testConnectionBtn"
+                    type="button"
+                >
+
+                    <i class="bi bi-plug"></i>
+
+                    Test Connection
+
+                </button>
+
+
+                <button
+                    class="primary-action"
+                    id="saveDatabaseBtn"
+                    type="button"
+                >
+
+                    <i class="bi bi-check2"></i>
+
+                    Save Database
+
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =============================================================
+     BOOTSTRAP JS
+============================================================== -->
 
 <script
     src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
 ></script>
 
-<script src="/static/app.js?v=11"></script>
+
+<!-- =============================================================
+     APPLICATION JS
+============================================================== -->
+
+<script
+    src="/static/app.js?v=21"
+></script>
+
 
 </body>
+
 </html>
