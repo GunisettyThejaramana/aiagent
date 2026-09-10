@@ -27,11 +27,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     /*
      * VOICE / LANGUAGE ELEMENTS
-     *
-     * These elements exist in the HTML.
-     * Keeping them declared here prevents
-     * "voiceStatus is not defined" and similar
-     * frontend errors.
      */
     const voiceBtn = $("voiceBtn");
     const inlineVoiceBtn = $("inlineVoiceBtn");
@@ -1032,13 +1027,6 @@ ${error.message}`
 
     /*
      * TEXT TO SPEECH
-     *
-     * Fixed:
-     * - voiceStatus no longer referenced
-     * - languageSelect properly declared
-     * - female voice preference preserved
-     * - Tamil / Hindi supported
-     * - voice setting supported
      */
 
     function speakAnswer(text) {
@@ -1243,40 +1231,40 @@ ${error.message}`
     }
 
 
-        function startSpeakingVisual() {
-    try {
-        const btn = document.getElementById("voiceBtn");
-        if (btn) {
-            btn.classList.remove("listening");
-            btn.classList.add("speaking");
-            btn.innerHTML = '<i class="bi bi-volume-up-fill"></i>';
-        }
+    function startSpeakingVisual() {
+        try {
+            const btn = document.getElementById("voiceBtn");
+            if (btn) {
+                btn.classList.remove("listening");
+                btn.classList.add("speaking");
+                btn.innerHTML = '<i class="bi bi-volume-up-fill"></i>';
+            }
 
-        const portrait = document.getElementById("assistantPortrait");
-        if (portrait) {
-            portrait.classList.add("speaking");
+            const portrait = document.getElementById("assistantPortrait");
+            if (portrait) {
+                portrait.classList.add("speaking");
+            }
+        } catch (e) {
+            console.warn(e);
         }
-    } catch (e) {
-        console.warn(e);
     }
-}
 
-function stopSpeakingVisual() {
-    try {
-        const btn = document.getElementById("voiceBtn");
-        if (btn) {
-            btn.classList.remove("speaking");
-            btn.innerHTML = '<i class="bi bi-mic-fill"></i>';
-        }
+    function stopSpeakingVisual() {
+        try {
+            const btn = document.getElementById("voiceBtn");
+            if (btn) {
+                btn.classList.remove("speaking");
+                btn.innerHTML = '<i class="bi bi-mic-fill"></i>';
+            }
 
-        const portrait = document.getElementById("assistantPortrait");
-        if (portrait) {
-            portrait.classList.remove("speaking");
+            const portrait = document.getElementById("assistantPortrait");
+            if (portrait) {
+                portrait.classList.remove("speaking");
+            }
+        } catch (e) {
+            console.warn(e);
         }
-    } catch (e) {
-        console.warn(e);
     }
-}
 
     function loadVoices() {
 
@@ -1456,11 +1444,7 @@ function stopSpeakingVisual() {
             recognition.start();
 
         } catch (_) {
-
-            /*
-             * Recognition may already
-             * be running.
-             */
+            // Recognition may already be running.
         }
     }
 
@@ -1851,7 +1835,7 @@ function stopSpeakingVisual() {
 
 
     /*
-     * DATABASE TYPE
+     * DATABASE TYPE SELECTION
      */
 
     document
@@ -1917,6 +1901,41 @@ function stopSpeakingVisual() {
                         }
                     }
                 );
+            }
+        );
+
+
+    /*
+     * PASSWORD SHOW / HIDE TOGGLE
+     */
+
+    $("togglePasswordBtn")
+        ?.addEventListener(
+            "click",
+            () => {
+
+                const input =
+                    $("connectionPassword");
+
+                const icon =
+                    $("togglePasswordBtn")
+                        ?.querySelector("i");
+
+                if (!input) {
+                    return;
+                }
+
+                if (input.type === "password") {
+                    input.type = "text";
+                    if (icon) {
+                        icon.className = "bi bi-eye-slash";
+                    }
+                } else {
+                    input.type = "password";
+                    if (icon) {
+                        icon.className = "bi bi-eye";
+                    }
+                }
             }
         );
 
@@ -2261,25 +2280,61 @@ function stopSpeakingVisual() {
     const sourceModalElement =
         $("sourceModal");
 
-
-    if (
-        sourceModalElement &&
-        window.bootstrap
-    ) {
-
-        sourceModal =
-            new bootstrap.Modal(
-                sourceModalElement
-            );
-    }
-
-
     function openSourceModal() {
 
-        sourceModal?.show();
+        if (!sourceModalElement) {
+            console.error(
+                "sourceModal element was not found in index.html"
+            );
+            return;
+        }
 
+        if (window.bootstrap) {
+
+            if (!sourceModal) {
+                sourceModal =
+                    new bootstrap.Modal(
+                        sourceModalElement
+                    );
+            }
+
+            sourceModal.show();
+            return;
+        }
+
+        // Fallback if Bootstrap JS is missing
+        sourceModalElement.style.display = "block";
+        sourceModalElement.classList.add("show");
+        sourceModalElement.removeAttribute("aria-hidden");
+        sourceModalElement.setAttribute(
+            "aria-modal",
+            "true"
+        );
+        sourceModalElement.setAttribute(
+            "role",
+            "dialog"
+        );
+
+        document.body.classList.add("modal-open");
+
+        const backdrop =
+            document.createElement("div");
+
+        backdrop.className =
+            "modal-backdrop fade show";
+
+        backdrop.id =
+            "sourceModalBackdrop";
+
+        document.body.appendChild(
+            backdrop
+        );
     }
 
+
+    /*
+     * ADD NEW SOURCE
+     */
 
     $("addSourceButton")
         ?.addEventListener(
@@ -2287,6 +2342,10 @@ function stopSpeakingVisual() {
             openSourceModal
         );
 
+
+    /*
+     * DOCUMENT SOURCE BUTTON
+     */
 
     $("documentSourceButton")
         ?.addEventListener(
@@ -2296,7 +2355,8 @@ function stopSpeakingVisual() {
 
 
     /*
-     * SOURCE TYPE
+     * SOURCE TYPE SELECTION
+     * + special handling for Database
      */
 
     document
@@ -2310,6 +2370,7 @@ function stopSpeakingVisual() {
                     "click",
                     () => {
 
+                        // visual selection
                         document
                             .querySelectorAll(
                                 ".source-type"
@@ -2322,10 +2383,35 @@ function stopSpeakingVisual() {
                                         )
                             );
 
-
                         button.classList.add(
                             "selected"
                         );
+
+                        const type =
+                            button.dataset.sourceType;
+
+                        // When user chooses Database →
+                        // close source modal and open the full Add Database modal
+                        if (type === "database") {
+
+                            if (sourceModal) {
+                                sourceModal.hide();
+                            } else if (sourceModalElement && window.bootstrap) {
+                                const instance =
+                                    bootstrap.Modal.getInstance(
+                                        sourceModalElement
+                                    );
+                                instance?.hide();
+                            }
+
+                            // small delay so the first modal closes cleanly
+                            setTimeout(
+                                () => {
+                                    openDatabaseModal();
+                                },
+                                250
+                            );
+                        }
                     }
                 );
             }
@@ -2657,9 +2743,6 @@ ${error.message}`
 
     /*
      * VOICE RESPONSE SETTING
-     *
-     * This connects the Settings checkbox
-     * with the volume button on the AI employee.
      */
 
     if (voiceResponseSetting) {

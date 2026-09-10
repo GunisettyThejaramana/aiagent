@@ -57,7 +57,7 @@
 
     <link
         rel="stylesheet"
-        href="/static/style.css?v=21"
+        href="/static/style.css?v=22"
     >
 
 </head>
@@ -831,18 +831,7 @@
                                 </div>
 
 
-                                <button
-                                    class="source-button"
-                                    id="addSourceButton"
-                                    type="button"
-                                >
-
-                                    <i class="bi bi-plus-lg"></i>
-
-                                    Add New Source
-
-                                </button>
-
+                                
                             </div>
 
 
@@ -2118,7 +2107,7 @@
 
 
 <!-- =============================================================
-     SOURCE MODAL
+     SOURCE MODAL  (non-database sources)
 ============================================================== -->
 
 <div
@@ -2337,7 +2326,7 @@
 
 
 <!-- =============================================================
-     DATABASE MODAL
+     DATABASE MODAL  (matches your 2nd screenshot)
 ============================================================== -->
 
 <div
@@ -2362,13 +2351,12 @@
 
                         <i class="bi bi-database-add"></i>
 
-                        Add database
+                        Add Database
 
                     </h3>
 
                     <p>
-                        Connect a business database to your
-                        AI employee.
+                        Connect a new business database to Enterprise AI.
                     </p>
 
                 </div>
@@ -2486,12 +2474,12 @@
 
                     <label class="field-label full">
 
-                        Connection name
+                        Connection Name
 
                         <input
                             id="connectionName"
                             class="form-input"
-                            placeholder="Enter connection name"
+                            placeholder="Example: Sales Database"
                         >
 
                     </label>
@@ -2506,7 +2494,7 @@
                         <input
                             id="connectionHost"
                             class="form-input"
-                            placeholder="Database host"
+                            placeholder="database.company.com"
                         >
 
                     </label>
@@ -2522,7 +2510,8 @@
                             id="connectionPort"
                             type="number"
                             class="form-input"
-                            placeholder="Port"
+                            placeholder="5432"
+                            value="5432"
                         >
 
                     </label>
@@ -2532,12 +2521,12 @@
 
                     <label class="field-label">
 
-                        Database name
+                        Database Name
 
                         <input
                             id="connectionDatabase"
                             class="form-input"
-                            placeholder="Database name"
+                            placeholder="database_name"
                         >
 
                     </label>
@@ -2552,7 +2541,7 @@
                         <input
                             id="connectionUsername"
                             class="form-input"
-                            placeholder="Username"
+                            placeholder="username"
                         >
 
                     </label>
@@ -2564,16 +2553,33 @@
 
                         Password
 
-                        <input
-                            id="connectionPassword"
-                            type="password"
-                            class="form-input"
-                            placeholder="Database password"
-                        >
+                        <div class="password-field">
+                            <input
+                                id="connectionPassword"
+                                type="password"
+                                class="form-input"
+                                placeholder="••••••••"
+                            >
+                            <button
+                                type="button"
+                                class="password-toggle"
+                                id="togglePasswordBtn"
+                                title="Show / hide password"
+                            >
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </div>
 
                     </label>
 
                 </div>
+
+
+                <p class="security-note">
+                    <i class="bi bi-shield-lock"></i>
+                    <strong>Your credentials are protected.</strong>
+                    Passwords should be encrypted before being stored and should never be displayed again.
+                </p>
 
 
                 <div
@@ -2645,7 +2651,7 @@
 ============================================================== -->
 
 <script
-    src="/static/app.js?v=21"
+    src="/static/app.js?v=22"
 ></script>
 
 
