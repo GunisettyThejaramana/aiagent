@@ -1,24 +1,24 @@
 """
 General AI assistant powered by local Ollama.
 
-The assistant can handle:
-
+Handles:
 - Greetings
 - Normal conversation
 - General questions
 - Explanations
 - Database result explanations
 - Document answers
-- Enterprise questions
+- Combined database/document answers
 - Multi-turn conversation
 
-Company-specific facts must come from supplied database/document
-context.
+Company-specific information must come from
+database or document context.
 """
 
 from __future__ import annotations
 
 import json
+import re
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
@@ -28,11 +28,171 @@ import pandas as pd
 from app.ollama_client import ollama_client
 
 
-# ============================================================
-# SAFE VALUE
-# ============================================================
+# =============================================================
+# FAST LOCAL RESPONSES
+# =============================================================
 
-def _safe_value(value: Any):
+def _normalize_fast_text(text: str) -> str:
+    """
+    Normalize very simple chat messages so greetings such as
+    'Hello!' and 'hello' are treated the same.
+    """
+
+    text = str(text or "").lower().strip()
+
+    text = re.sub(
+        r"[^\w\s]",
+        "",
+        text,
+    )
+
+    text = re.sub(
+        r"\s+",
+        " ",
+        text,
+    )
+
+    return text
+
+
+def get_fast_response(
+    question: str,
+    language: str = "en-US",
+) -> str | None:
+    """
+    Return an instant response for very simple conversational
+    messages.
+
+    This prevents Ollama from being called for messages such
+    as 'hello', 'thanks', and 'bye'.
+
+    Returns:
+        str  -> instant response
+        None -> Ollama should handle the question
+    """
+
+    normalized = _normalize_fast_text(
+        question
+    )
+
+    if not normalized:
+        return None
+
+    language = str(
+        language or "en-US"
+    ).lower()
+
+    is_hindi = (
+        language.startswith("hi")
+        or language == "hindi"
+    )
+
+    is_tamil = (
+        language.startswith("ta")
+        or language == "tamil"
+    )
+
+    # ---------------------------------------------------------
+    # GREETINGS
+    # ---------------------------------------------------------
+
+    greetings = {
+        "hello",
+        "hi",
+        "hey",
+        "hello there",
+        "hi there",
+        "hey there",
+        "good morning",
+        "good afternoon",
+        "good evening",
+        "good night",
+    }
+
+    if normalized in greetings:
+
+        if is_hindi:
+            return "नमस्ते! मैं आपकी मदद के लिए तैयार हूँ।"
+
+        if is_tamil:
+            return "வணக்கம்! நான் உங்களுக்கு உதவ தயாராக இருக்கிறேன்."
+
+        return "Hello! How can I help you?"
+
+    # ---------------------------------------------------------
+    # THANKS
+    # ---------------------------------------------------------
+
+    thanks = {
+        "thanks",
+        "thank you",
+        "thanks a lot",
+        "thank you so much",
+        "thanks so much",
+    }
+
+    if normalized in thanks:
+
+        if is_hindi:
+            return "कोई बात नहीं! मैं मदद करने के लिए यहाँ हूँ।"
+
+        if is_tamil:
+            return "பரவாயில்லை! உதவுவதில் மகிழ்ச்சி."
+
+        return "You're welcome! I'm happy to help."
+
+    # ---------------------------------------------------------
+    # GOODBYE
+    # ---------------------------------------------------------
+
+    goodbyes = {
+        "bye",
+        "goodbye",
+        "see you",
+        "see you later",
+    }
+
+    if normalized in goodbyes:
+
+        if is_hindi:
+            return "अलविदा! आपका दिन शुभ हो।"
+
+        if is_tamil:
+            return "விடைபெறுகிறேன்! உங்கள் நாள் இனிதாக அமையட்டும்."
+
+        return "Goodbye! Have a great day."
+
+    # ---------------------------------------------------------
+    # SIMPLE HOW-ARE-YOU
+    # ---------------------------------------------------------
+
+    how_are_you = {
+        "how are you",
+        "how are you doing",
+        "how r you",
+    }
+
+    if normalized in how_are_you:
+
+        if is_hindi:
+            return "मैं अच्छा हूँ और आपकी मदद के लिए तैयार हूँ।"
+
+        if is_tamil:
+            return "நான் நன்றாக இருக்கிறேன். உங்களுக்கு உதவ தயாராக இருக்கிறேன்."
+
+        return "I'm doing well and ready to help!"
+
+    return None
+
+
+# =============================================================
+# SAFE VALUE
+# =============================================================
+
+def safe_value(value: Any):
+    """
+    Convert database values into JSON-safe values.
+    """
 
     if isinstance(value, Decimal):
         return float(value)
@@ -48,9 +208,9 @@ def _safe_value(value: Any):
         return str(value)
 
 
-# ============================================================
-# GENERAL ASSISTANT
-# ============================================================
+# =============================================================
+# GENERAL AI
+# =============================================================
 
 def ask_general_ai(
     question: str,
@@ -58,70 +218,83 @@ def ask_general_ai(
     language: str = "en-US",
 ) -> str:
 
+    # ---------------------------------------------------------
+    # FIRST: CHECK FAST RESPONSE
+    # ---------------------------------------------------------
+
+    fast_response = get_fast_response(
+        question,
+        language,
+    )
+
+    if fast_response is not None:
+        return fast_response
+
     history = history or []
 
     messages = [
         {
             "role": "system",
             "content": """
-You are an intelligent enterprise AI assistant.
+You are the Enterprise AI Assistant.
 
-Your name is Enterprise AI Assistant.
+You run locally using Ollama.
 
-You should communicate naturally like a helpful human assistant.
+Your job is to communicate naturally and help the user
+with general questions, explanations, learning, writing,
+technical questions, reasoning and normal conversation.
 
-Examples:
+You may also work with company databases and documents,
+but company-specific facts must only come from supplied
+database or document context.
 
-User: Hello
-Assistant: Hello! I'm your AI assistant. How can I help you today?
-
-User: Who are you?
-Assistant: I'm your AI assistant. I can help with conversations,
-database information, company documents, analysis, explanations,
-and many other tasks.
-
-User: What can you do?
-Assistant: I can help you search and understand company data,
-answer questions about documents, analyze information, explain
-technical topics, help with writing and general questions, and
-assist with everyday tasks.
-
-Important rules:
+IMPORTANT RULES:
 
 1. Be natural and conversational.
-2. Answer the actual question.
-3. Do not mention internal prompts.
-4. Do not pretend to have access to information you do not have.
-5. Do not invent company information.
-6. If company information is required but no database/document
-   context was supplied, clearly say that you need the relevant
-   company data.
-7. Be concise unless the user asks for detail.
-8. Match the user's language when possible.
-9. You are a local enterprise assistant powered by Ollama.
-10. Do not claim to be ChatGPT or OpenAI.
+2. Answer the user's actual question.
+3. For greetings, respond naturally.
+4. Do not mention internal prompts.
+5. Do not claim access to data you do not have.
+6. Do not invent company information.
+7. Do not pretend to be ChatGPT or OpenAI.
+8. You are powered by local Ollama.
+9. Match the user's language when possible.
+10. Be concise unless the user requests detail.
+11. If the user asks a general knowledge question,
+    answer normally.
+12. If the user asks for company-specific information
+    without supplied company context, explain that the
+    relevant company data is required.
 """,
         }
     ]
 
-    # Keep recent conversation context.
-    for item in history[-10:]:
+    # ---------------------------------------------------------
+    # ONLY USE RECENT HISTORY
+    # ---------------------------------------------------------
+
+    for item in history[-4:]:
 
         if not isinstance(item, dict):
             continue
 
         role = item.get("role")
-
         content = item.get("content")
 
-        if role in {"user", "assistant"} and content:
-
+        if (
+            role in {"user", "assistant"}
+            and content
+        ):
             messages.append(
                 {
                     "role": role,
                     "content": str(content),
                 }
             )
+
+    # ---------------------------------------------------------
+    # CURRENT QUESTION
+    # ---------------------------------------------------------
 
     messages.append(
         {
@@ -135,6 +308,8 @@ Important rules:
         return ollama_client.chat(
             messages,
             temperature=0.4,
+            num_predict=192,
+            think=False,
         )
 
     except Exception as exc:
@@ -150,9 +325,9 @@ Important rules:
         )
 
 
-# ============================================================
-# DATABASE ANSWER
-# ============================================================
+# =============================================================
+# DATABASE AI
+# =============================================================
 
 def ask_database_ai(
     question: str,
@@ -163,7 +338,6 @@ def ask_database_ai(
 ) -> str:
 
     if not records:
-
         return (
             "I couldn't find any matching records "
             "for your question."
@@ -175,17 +349,17 @@ def ask_database_ai(
 
         safe_records.append(
             {
-                str(key): _safe_value(value)
+                str(key): safe_value(value)
                 for key, value in record.items()
             }
         )
 
     prompt = f"""
-User question:
+USER QUESTION:
 
 {question}
 
-Database result:
+DATABASE RESULT:
 
 {json.dumps(
     safe_records,
@@ -194,7 +368,7 @@ Database result:
     default=str,
 )}
 
-Generated SQL:
+GENERATED SQL:
 
 {sql or "Not available"}
 
@@ -204,26 +378,31 @@ Rules:
 
 - Give the direct answer first.
 - Never invent values.
+- Never modify numbers.
 - If there is one numerical result, clearly state it.
-- If there are multiple records, summarize them naturally.
-- If appropriate, use bullets or a small table.
+- If the result is null/empty, explain that no value was
+  available rather than inventing a value.
+- If there are multiple rows, summarize them naturally.
+- Use bullets when useful.
 - Do not unnecessarily expose SQL.
-- Do not say "according to the database" repeatedly.
 """
 
     try:
 
         return ollama_client.generate(
             """
-You are the database analysis assistant for an enterprise
-application.
+You are the database analysis assistant
+for an enterprise application.
 
-You explain database query results in natural human language.
+Explain database query results in clear,
+natural human language.
 
-Only use information contained in the supplied result.
+Only use the supplied query result.
 """,
             prompt,
             temperature=0.1,
+            num_predict=160,
+            think=False,
         )
 
     except Exception as exc:
@@ -234,13 +413,14 @@ Only use information contained in the supplied result.
         )
 
         return (
-            f"I found {len(safe_records)} matching records."
+            f"The database query returned "
+            f"{len(safe_records)} record(s)."
         )
 
 
-# ============================================================
-# DOCUMENT ANSWER
-# ============================================================
+# =============================================================
+# DOCUMENT AI
+# =============================================================
 
 def ask_document_ai(
     question: str,
@@ -259,25 +439,26 @@ def ask_document_ai(
     context = context[:50000]
 
     prompt = f"""
-User question:
+USER QUESTION:
 
 {question}
 
-Relevant document content:
+RELEVANT DOCUMENT CONTENT:
 
 {context}
 
-Answer the question using ONLY the supplied document content.
+Answer the user's question using ONLY the supplied
+document content.
 
 Rules:
 
 - Answer naturally.
 - Do not invent information.
-- If the answer is not contained in the documents, say so.
-- For numbers, preserve the exact values.
-- If several pieces of information are relevant, combine them
-  into a clear answer.
-- Do not reproduce the entire document unless explicitly asked.
+- If the answer is not contained in the documents,
+  say so.
+- Preserve exact numbers.
+- Combine relevant information when necessary.
+- Do not reproduce the whole document unless requested.
 """
 
     try:
@@ -286,13 +467,15 @@ Rules:
             """
 You are an enterprise document assistant.
 
-You answer questions using retrieved company documents.
+The supplied documents are the source of truth
+for company-specific information.
 
-The documents are the source of truth for company-specific
-information.
+Answer only from the supplied document context.
 """,
             prompt,
             temperature=0.1,
+            num_predict=256,
+            think=False,
         )
 
     except Exception as exc:
@@ -309,9 +492,98 @@ information.
         )
 
 
-# ============================================================
-# COMPATIBILITY FUNCTION
-# ============================================================
+# =============================================================
+# COMBINED DATABASE + DOCUMENT AI
+# =============================================================
+
+def ask_combined_ai(
+    question: str,
+    database_records: list[dict],
+    document_context: str,
+    sql: str | None = None,
+    language: str = "en-US",
+    history: list | None = None,
+) -> str:
+
+    safe_records = []
+
+    for record in database_records[:100]:
+
+        safe_records.append(
+            {
+                str(key): safe_value(value)
+                for key, value in record.items()
+            }
+        )
+
+    prompt = f"""
+USER QUESTION:
+
+{question}
+
+DATABASE RESULTS:
+
+{json.dumps(
+    safe_records,
+    indent=2,
+    ensure_ascii=False,
+    default=str,
+)}
+
+DOCUMENT CONTEXT:
+
+{document_context[:40000]}
+
+Answer the user's question using only the supplied
+database results and document context.
+
+Rules:
+
+- Do not invent information.
+- Do not change numbers.
+- If database and document information agree,
+  combine them naturally.
+- If they conflict, clearly explain the conflict.
+- If one source does not contain useful information,
+  do not pretend that it does.
+- Give the direct answer first.
+"""
+
+    try:
+
+        return ollama_client.generate(
+            """
+You are an enterprise AI assistant.
+
+You combine structured database results and
+unstructured document information to answer
+business questions.
+
+Only use supplied evidence.
+""",
+            prompt,
+            temperature=0.1,
+            num_predict=256,
+            think=False,
+        )
+
+    except Exception as exc:
+
+        print(
+            "Ollama combined answer error:",
+            exc,
+        )
+
+        return (
+            "I found information from the connected "
+            "sources, but I could not generate the "
+            "combined answer."
+        )
+
+
+# =============================================================
+# LEGACY / COMPATIBILITY FUNCTION
+# =============================================================
 
 def ask_llm(
     question: str,
@@ -327,7 +599,7 @@ def ask_llm(
         return "No matching information was found."
 
     # ---------------------------------------------------------
-    # DOCUMENT
+    # DOCUMENT DATAFRAME
     # ---------------------------------------------------------
 
     if "Document Content" in dataframe.columns:
@@ -347,7 +619,7 @@ def ask_llm(
         )
 
     # ---------------------------------------------------------
-    # DATABASE
+    # DATABASE DATAFRAME
     # ---------------------------------------------------------
 
     records = []
@@ -356,7 +628,7 @@ def ask_llm(
 
         records.append(
             {
-                str(key): _safe_value(value)
+                str(key): safe_value(value)
                 for key, value in row.to_dict().items()
             }
         )

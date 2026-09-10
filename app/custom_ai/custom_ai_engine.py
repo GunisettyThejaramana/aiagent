@@ -1,3 +1,4 @@
+
 """
 Ollama-powered database AI engine.
 
@@ -54,16 +55,23 @@ FORBIDDEN_SQL = {
 
 
 def validate_sql(sql: str) -> str:
+    """
+    Validate and clean AI-generated SQL.
+
+    Only SELECT and WITH statements are allowed.
+    """
 
     if not sql:
-
         raise ValueError(
             "The AI did not generate SQL."
         )
 
-    sql = sql.strip()
+    sql = str(sql).strip()
 
-    # Remove markdown code fences.
+    # --------------------------------------------------------
+    # Remove markdown code fences
+    # --------------------------------------------------------
+
     sql = re.sub(
         r"^```(?:sql)?\s*",
         "",
@@ -80,22 +88,39 @@ def validate_sql(sql: str) -> str:
 
     sql = sql.strip()
 
-    # Only one statement.
-    if ";" in sql[:-1]:
+    # --------------------------------------------------------
+    # Remove one final semicolon
+    # --------------------------------------------------------
 
+    sql_without_final_semicolon = sql.rstrip(";").strip()
+
+    # --------------------------------------------------------
+    # Multiple statement protection
+    # --------------------------------------------------------
+
+    if ";" in sql_without_final_semicolon:
         raise ValueError(
             "Multiple SQL statements are not allowed."
         )
+
+    sql = sql_without_final_semicolon
+
+    # --------------------------------------------------------
+    # SELECT / WITH only
+    # --------------------------------------------------------
 
     if not re.match(
         r"^(select|with)\b",
         sql,
         flags=re.IGNORECASE,
     ):
-
         raise ValueError(
             "Only SELECT/WITH queries are allowed."
         )
+
+    # --------------------------------------------------------
+    # Forbidden keywords
+    # --------------------------------------------------------
 
     lowered = sql.lower()
 
@@ -105,12 +130,11 @@ def validate_sql(sql: str) -> str:
             rf"\b{re.escape(keyword)}\b",
             lowered,
         ):
-
             raise ValueError(
                 f"Unsafe SQL keyword detected: {keyword}"
             )
 
-    return sql.rstrip(";").strip()
+    return sql
 
 
 # ============================================================
@@ -118,6 +142,9 @@ def validate_sql(sql: str) -> str:
 # ============================================================
 
 def safe_value(value):
+    """
+    Convert database values into JSON-safe values.
+    """
 
     if isinstance(value, Decimal):
         return float(value)
@@ -148,6 +175,9 @@ class CustomAIEngine:
         engine,
         database_id=None,
     ):
+        """
+        Get database schema from the knowledge cache.
+        """
 
         cache_key = (
             database_id
@@ -172,6 +202,10 @@ class CustomAIEngine:
         self,
         knowledge,
     ) -> str:
+        """
+        Convert database schema information
+        into a compact prompt for Ollama.
+        """
 
         tables = knowledge.get(
             "tables",
@@ -184,6 +218,10 @@ class CustomAIEngine:
         )
 
         parts = []
+
+        # ----------------------------------------------------
+        # TABLES
+        # ----------------------------------------------------
 
         for table_name, info in tables.items():
 
@@ -217,10 +255,18 @@ class CustomAIEngine:
                     f"- {name} ({data_type})"
                 )
 
-            parts.append(
+            table_text = (
                 f"TABLE: {table_name}\n"
                 + "\n".join(column_lines)
             )
+
+            parts.append(
+                table_text
+            )
+
+        # ----------------------------------------------------
+        # RELATIONSHIPS
+        # ----------------------------------------------------
 
         if relationships:
 
@@ -233,7 +279,9 @@ class CustomAIEngine:
                 )
             )
 
-        return "\n\n".join(parts)
+        return "\n\n".join(
+            parts
+        )
 
     # ========================================================
     # ASK OLLAMA FOR SQL
@@ -244,6 +292,10 @@ class CustomAIEngine:
         question,
         schema_text,
     ):
+        """
+        Ask Ollama to convert the natural-language
+        database question into PostgreSQL.
+        """
 
         system_prompt = """
 You are an expert PostgreSQL query planner.
@@ -251,9 +303,10 @@ You are an expert PostgreSQL query planner.
 Your job is to translate a user's natural-language question
 into a SAFE read-only PostgreSQL query.
 
-You have access only to the schema supplied by the application.
+You have access only to the database schema supplied
+by the application.
 
-IMPORTANT:
+IMPORTANT RULES:
 
 1. Use only tables and columns present in the schema.
 2. Never invent a table.
@@ -266,17 +319,29 @@ IMPORTANT:
 9. Never generate ALTER.
 10. Never generate CREATE.
 11. Never generate TRUNCATE.
-12. Use JOINs when the schema relationships require them.
-13. Understand natural language dates such as:
+12. Never generate GRANT.
+13. Never generate REVOKE.
+14. Never generate MERGE.
+15. Never generate REPLACE.
+16. Use JOINs when relationships require them.
+17. Use PostgreSQL syntax.
+18. Use aggregate functions when appropriate.
+19. Use GROUP BY when grouping is required.
+20. Use ORDER BY when ranking is requested.
+21. Use LIMIT when the user asks for top/bottom records.
+22. Understand natural language dates.
+23. Understand:
     - today
     - yesterday
+    - this week
+    - last week
     - this month
     - last month
-    - this year
-    - last year
     - this quarter
     - last quarter
-14. Understand:
+    - this year
+    - last year
+24. Understand:
     - total
     - sum
     - average
@@ -291,12 +356,18 @@ IMPORTANT:
     - comparison
     - growth
     - difference
-15. If the question asks for a ranking, use ORDER BY and LIMIT.
-16. If grouping is required, use GROUP BY.
-17. Use PostgreSQL syntax.
-18. Return ONLY JSON.
+25. Prefer exact database values over assumptions.
+26. Do not invent business rules.
+27. If a requested concept does not exist in the schema,
+    use the closest valid information only when it clearly
+    answers the question.
+28. If the requested information cannot be obtained from
+    the schema, generate the safest possible query or
+    explain through the query metadata.
 
-JSON format:
+RETURN ONLY JSON.
+
+JSON FORMAT:
 
 {
     "sql": "SELECT ...",
@@ -335,8 +406,13 @@ Generate the safest and most accurate PostgreSQL query.
         engine,
         sql,
     ):
+        """
+        Execute validated read-only SQL.
+        """
 
-        sql = validate_sql(sql)
+        sql = validate_sql(
+            sql
+        )
 
         with engine.connect() as connection:
 
@@ -382,11 +458,18 @@ Generate the safest and most accurate PostgreSQL query.
         sql,
         language="en-US",
     ):
+        """
+        Ask Ollama to explain the database result.
+        """
 
         rows = execution.get(
             "rows",
             [],
         )
+
+        # ----------------------------------------------------
+        # NO ROWS
+        # ----------------------------------------------------
 
         if not rows:
 
@@ -395,6 +478,30 @@ Generate the safest and most accurate PostgreSQL query.
                 "your question."
             )
 
+        # ----------------------------------------------------
+        # SINGLE NULL AGGREGATE
+        # ----------------------------------------------------
+
+        if len(rows) == 1:
+
+            values = list(
+                rows[0].values()
+            )
+
+            if values and all(
+                value is None
+                for value in values
+            ):
+
+                return (
+                    "No matching data was found for "
+                    "the requested period."
+                )
+
+        # ----------------------------------------------------
+        # RESULT JSON
+        # ----------------------------------------------------
+
         result_text = json.dumps(
             rows,
             indent=2,
@@ -402,22 +509,32 @@ Generate the safest and most accurate PostgreSQL query.
             default=str,
         )
 
+        # ----------------------------------------------------
+        # OLLAMA FINAL ANSWER
+        # ----------------------------------------------------
+
         return ollama_client.generate(
             """
 You are an enterprise database answer assistant.
 
 Answer the user's question using ONLY the query result.
 
-Be natural and concise.
+Be natural, accurate and concise.
 
 Rules:
 
 - Do not invent facts.
 - Do not change numbers.
-- If the result contains one value, clearly state it.
-- If the result contains multiple rows, summarize them.
-- If appropriate, use bullets.
-- Do not explain SQL unless asked.
+- Do not guess missing values.
+- If the result contains one value,
+  clearly state that value.
+- If the result contains multiple rows,
+  summarize them clearly.
+- Use bullets when useful.
+- If appropriate, mention the number of records.
+- Do not explain SQL unless the user asks.
+- If a value is null, say that the database returned
+  no value for that calculation.
 """,
             f"""
 USER QUESTION:
@@ -448,8 +565,38 @@ Give the final answer.
         database_id=None,
         language="en-US",
     ):
+        """
+        Main database AI pipeline.
+        """
 
         started = time.perf_counter()
+
+        question = str(
+            question or ""
+        ).strip()
+
+        # ----------------------------------------------------
+        # EMPTY QUESTION
+        # ----------------------------------------------------
+
+        if not question:
+
+            return {
+                "success": False,
+                "answer": (
+                    "Please enter a database question."
+                ),
+                "sql": None,
+                "execution": {
+                    "success": False,
+                    "reason": "Empty question",
+                },
+                "processing_time": round(
+                    time.perf_counter()
+                    - started,
+                    3,
+                ),
+            }
 
         # ----------------------------------------------------
         # OLLAMA CHECK
@@ -469,7 +616,8 @@ Give the final answer.
                     "reason": "Ollama unavailable",
                 },
                 "processing_time": round(
-                    time.perf_counter() - started,
+                    time.perf_counter()
+                    - started,
                     3,
                 ),
             }
@@ -519,15 +667,22 @@ Give the final answer.
                     },
                     "database_knowledge_cached": True,
                     "processing_time": round(
-                        time.perf_counter() - started,
+                        time.perf_counter()
+                        - started,
                         3,
                     ),
                 }
 
             except Exception as exc:
 
+                print(
+                    "Explicit SQL error:",
+                    exc,
+                )
+
                 return {
                     "success": False,
+                    "question": question,
                     "answer": str(exc),
                     "sql": question,
                     "execution": {
@@ -535,7 +690,8 @@ Give the final answer.
                         "reason": str(exc),
                     },
                     "processing_time": round(
-                        time.perf_counter() - started,
+                        time.perf_counter()
+                        - started,
                         3,
                     ),
                 }
@@ -544,14 +700,41 @@ Give the final answer.
         # SCHEMA
         # ----------------------------------------------------
 
-        knowledge = self.get_schema(
-            engine,
-            database_id,
-        )
+        try:
 
-        schema_text = self.schema_text(
-            knowledge
-        )
+            knowledge = self.get_schema(
+                engine,
+                database_id,
+            )
+
+            schema_text = self.schema_text(
+                knowledge
+            )
+
+        except Exception as exc:
+
+            print(
+                "Database schema error:",
+                exc,
+            )
+
+            return {
+                "success": False,
+                "question": question,
+                "answer": (
+                    "I could not read the database schema."
+                ),
+                "sql": None,
+                "execution": {
+                    "success": False,
+                    "reason": str(exc),
+                },
+                "processing_time": round(
+                    time.perf_counter()
+                    - started,
+                    3,
+                ),
+            }
 
         # ----------------------------------------------------
         # SQL GENERATION
@@ -566,8 +749,14 @@ Give the final answer.
 
         except Exception as exc:
 
+            print(
+                "Ollama SQL generation error:",
+                exc,
+            )
+
             return {
                 "success": False,
+                "question": question,
                 "answer": (
                     "I could not understand the database "
                     "question using the local AI model."
@@ -578,17 +767,50 @@ Give the final answer.
                     "reason": str(exc),
                 },
                 "processing_time": round(
-                    time.perf_counter() - started,
+                    time.perf_counter()
+                    - started,
                     3,
                 ),
             }
+
+        if not isinstance(
+            plan,
+            dict,
+        ):
+            plan = {}
 
         sql = plan.get(
             "sql"
         )
 
         # ----------------------------------------------------
-        # VALIDATE
+        # SQL MISSING
+        # ----------------------------------------------------
+
+        if not sql:
+
+            return {
+                "success": False,
+                "question": question,
+                "answer": (
+                    "The AI could not generate a valid "
+                    "database query for this question."
+                ),
+                "sql": None,
+                "execution": {
+                    "success": False,
+                    "reason": "No SQL generated",
+                },
+                "query": plan,
+                "processing_time": round(
+                    time.perf_counter()
+                    - started,
+                    3,
+                ),
+            }
+
+        # ----------------------------------------------------
+        # VALIDATE SQL
         # ----------------------------------------------------
 
         try:
@@ -599,8 +821,14 @@ Give the final answer.
 
         except Exception as exc:
 
+            print(
+                "SQL validation error:",
+                exc,
+            )
+
             return {
                 "success": False,
+                "question": question,
                 "answer": (
                     "The AI generated an invalid or "
                     "unsafe database query."
@@ -612,7 +840,8 @@ Give the final answer.
                 },
                 "query": plan,
                 "processing_time": round(
-                    time.perf_counter() - started,
+                    time.perf_counter()
+                    - started,
                     3,
                 ),
             }
@@ -630,8 +859,14 @@ Give the final answer.
 
         except Exception as exc:
 
+            print(
+                "Database execution error:",
+                exc,
+            )
+
             return {
                 "success": False,
+                "question": question,
                 "answer": (
                     "I generated a database query, "
                     "but the database could not execute it."
@@ -643,13 +878,14 @@ Give the final answer.
                 },
                 "query": plan,
                 "processing_time": round(
-                    time.perf_counter() - started,
+                    time.perf_counter()
+                    - started,
                     3,
                 ),
             }
 
         # ----------------------------------------------------
-        # ANSWER
+        # FINAL ANSWER
         # ----------------------------------------------------
 
         try:
@@ -669,18 +905,24 @@ Give the final answer.
             )
 
             answer = (
-                f"Query completed successfully and "
-                f"returned {execution['row_count']} "
+                f"The database query completed "
+                f"successfully and returned "
+                f"{execution.get('row_count', 0)} "
                 f"record(s)."
             )
 
         # ----------------------------------------------------
-        # RESULT
+        # PROCESSING TIME
         # ----------------------------------------------------
 
         elapsed = (
-            time.perf_counter() - started
+            time.perf_counter()
+            - started
         )
+
+        # ----------------------------------------------------
+        # FINAL RESULT
+        # ----------------------------------------------------
 
         return {
             "success": True,
@@ -726,6 +968,9 @@ Give the final answer.
         engine,
         database_id=None,
     ):
+        """
+        Backward-compatible wrapper.
+        """
 
         return self.process(
             question,
@@ -739,3 +984,4 @@ Give the final answer.
 # ============================================================
 
 custom_ai_engine = CustomAIEngine()
+

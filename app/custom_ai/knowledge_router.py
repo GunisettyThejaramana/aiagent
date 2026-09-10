@@ -1,205 +1,36 @@
+"""
+Intelligent knowledge router.
+
+Possible routes:
+
+    chat
+    database
+    documents
+    both
+
+Ollama performs the primary classification.
+
+A small deterministic fallback is retained so the
+application can still make a reasonable decision if
+Ollama is temporarily unavailable.
+"""
+
+from __future__ import annotations
+
+from app.ollama_client import ollama_client
+
+
 class KnowledgeRouter:
-    """
-    Deterministic router for deciding where a question should be answered from.
 
-    Sources:
-        - database
-        - documents
-        - both
-
-    The router is intentionally conservative.
-
-    Rules:
-        1. Explicit document language wins.
-        2. Report/document-style questions win over generic business words.
-        3. Database-specific words such as balance, weaver, loom, stock,
-           payment, employee, etc. go to the database.
-        4. Questions asking for sales/revenue for a specific reporting
-           month/year can be answered from business reports, so they are
-           routed to documents in Auto mode.
-        5. If nothing is clear, default to database.
-    """
-
-    # ================================================================
-    # DOCUMENT KEYWORDS
-    # ================================================================
-
-    DOCUMENT_KEYWORDS = {
-        "document",
-        "documents",
-        "file",
-        "files",
-        "pdf",
-        "pdfs",
-        "manual",
-        "manuals",
-        "policy",
-        "policies",
-        "report",
-        "reports",
-        "mentioned",
-        "mention",
-        "written",
-        "says",
-        "said",
-        "content",
-        "according",
-        "guideline",
-        "guidelines",
-        "procedure",
-        "procedures",
-        "agreement",
-        "contract",
-        "contracts",
-        "notice",
-        "notices",
-        "letter",
-        "letters",
-        "presentation",
-        "presentations",
-        "reporting",
-        "target",
-        "achievement",
-        "kpi",
-        "summary",
-        "summarize",
-        "summarise",
-    }
-
-    # ================================================================
-    # DATABASE KEYWORDS
-    # ================================================================
-
-    DATABASE_KEYWORDS = {
-        "database",
-        "table",
-        "tables",
-        "record",
-        "records",
-        "row",
-        "rows",
-        "weaver",
-        "weavers",
-        "loom",
-        "looms",
-        "saree",
-        "sarees",
-        "warp",
-        "warps",
-        "weft",
-        "wefts",
-        "stock",
-        "stocks",
-        "payment",
-        "payments",
-        "balance",
-        "credit",
-        "debit",
-        "salary",
-        "salaries",
-        "employee",
-        "employees",
-        "quantity",
-        "price",
-        "transaction",
-        "transactions",
-    }
-
-    # ================================================================
-    # BOTH KEYWORDS
-    # ================================================================
-
-    BOTH_KEYWORDS = {
-        "compare",
-        "comparison",
-        "difference",
-        "against",
-        "between",
-        "database and document",
-        "database and documents",
-        "database versus document",
-        "database versus documents",
-        "database vs document",
-        "database vs documents",
-    }
-
-    # ================================================================
-    # EXPLICIT DOCUMENT PHRASES
-    # ================================================================
-
-    DOCUMENT_PHRASES = {
-        "according to the report",
-        "according to the document",
-        "according to the file",
-        "according to the pdf",
-
-        "in the report",
-        "in the document",
-        "in the file",
-        "in the pdf",
-
-        "from the report",
-        "from the document",
-        "from the file",
-        "from the pdf",
-
-        "as per the report",
-        "as per the document",
-        "as per the file",
-        "as per the pdf",
-
-        "what does the report say",
-        "what does the document say",
-        "what does the file say",
-        "what does the pdf say",
-
-        "what is mentioned in the report",
-        "what is mentioned in the document",
-        "what is mentioned in the file",
-        "what is mentioned in the pdf",
-
-        "what is written in the report",
-        "what is written in the document",
-        "what is written in the file",
-        "what is written in the pdf",
-
-        "show me the report",
-        "show me the document",
-        "show me the file",
-
-        "sales report",
-        "sales reports",
-        "sales target report",
-        "sales target achievement report",
-        "management report",
-        "management kpi report",
-        "kpi report",
-    }
-
-    # ================================================================
-    # REPORTING MONTHS
-    # ================================================================
-
-    MONTHS = {
-        "january",
-        "february",
-        "march",
-        "april",
-        "may",
-        "june",
-        "july",
-        "august",
-        "september",
-        "october",
-        "november",
-        "december",
-    }
-
-    # ================================================================
+    # ============================================================
     # NORMALIZE
-    # ================================================================
+    # ============================================================
 
-    def normalize(self, text: str) -> str:
+    def normalize(
+        self,
+        text: str,
+    ) -> str:
+
         return " ".join(
             str(text or "")
             .lower()
@@ -207,191 +38,295 @@ class KnowledgeRouter:
             .split()
         )
 
-    # ================================================================
-    # KEYWORD MATCHING
-    # ================================================================
+    # ============================================================
+    # DETERMINISTIC FALLBACK
+    # ============================================================
 
-    def _contains_keyword(
+    def fallback_route(
         self,
         question: str,
-        keywords: set[str]
-    ) -> bool:
+    ) -> str:
 
-        words = set(question.split())
+        q = self.normalize(question)
 
-        for keyword in keywords:
+        if not q:
+            return "chat"
 
-            if " " in keyword:
+        # --------------------------------------------------------
+        # Explicit document language
+        # --------------------------------------------------------
 
-                if keyword in question:
-                    return True
-
-            elif keyword in words:
-
-                return True
-
-        return False
-
-    # ================================================================
-    # MONTH + REPORTING QUESTION DETECTION
-    # ================================================================
-
-    def _contains_month(self, question: str) -> bool:
-        words = set(question.split())
-
-        return any(
-            month in words
-            for month in self.MONTHS
-        )
-
-    def _is_sales_reporting_question(
-        self,
-        question: str
-    ) -> bool:
-        """
-        Detect questions such as:
-
-            What were the total sales in August 2026?
-            What was the revenue in August 2026?
-            Show sales for September 2026.
-            What were total sales in July?
-
-        These are treated as document/report questions in Auto mode
-        because business reporting data is available in indexed reports.
-        """
-
-        sales_words = {
-            "sales",
-            "sale",
-            "revenue",
-            "turnover",
-            "achievement",
-        }
-
-        reporting_words = {
-            "total",
-            "monthly",
-            "month",
+        document_terms = [
+            "document",
+            "documents",
+            "file",
+            "files",
+            "pdf",
             "report",
-            "actual",
-            "target",
-            "achievement",
-            "summary",
-            "were",
-            "was",
-            "show",
-            "give",
-        }
+            "reports",
+            "manual",
+            "policy",
+            "policies",
+            "contract",
+            "agreement",
+            "presentation",
+            "according to the report",
+            "according to the document",
+            "according to the file",
+            "what does the report say",
+            "what does the document say",
+            "what is mentioned in the report",
+            "what is mentioned in the document",
+            "what is written in the report",
+            "what is written in the document",
+        ]
 
-        has_sales_word = self._contains_keyword(
-            question,
-            sales_words
-        )
-
-        has_month = self._contains_month(
-            question
-        )
-
-        has_reporting_word = self._contains_keyword(
-            question,
-            reporting_words
-        )
-
-        # Example:
-        # "What were the total sales in August 2026?"
-        if (
-            has_sales_word
-            and has_month
-            and has_reporting_word
+        if any(
+            term in q
+            for term in document_terms
         ):
-            return True
+            return "documents"
 
-        return False
+        # --------------------------------------------------------
+        # Database terms
+        # --------------------------------------------------------
 
-    # ================================================================
-    # ROUTE
-    # ================================================================
+        database_terms = [
+            "database",
+            "table",
+            "tables",
+            "record",
+            "records",
+            "row",
+            "rows",
+            "weaver",
+            "weavers",
+            "loom",
+            "looms",
+            "saree",
+            "sarees",
+            "warp",
+            "warps",
+            "weft",
+            "wefts",
+            "stock",
+            "stocks",
+            "payment",
+            "payments",
+            "balance",
+            "transaction",
+            "transactions",
+            "quantity",
+            "price",
+            "sales data",
+            "sales records",
+        ]
 
-    def route(self, question: str) -> str:
+        if any(
+            term in q
+            for term in database_terms
+        ):
+            return "database"
+
+        # --------------------------------------------------------
+        # Comparison
+        # --------------------------------------------------------
+
+        both_terms = [
+            "database and document",
+            "database and documents",
+            "database vs document",
+            "database vs documents",
+            "compare database",
+            "compare the database",
+        ]
+
+        if any(
+            term in q
+            for term in both_terms
+        ):
+            return "both"
+
+        # --------------------------------------------------------
+        # Default = CHAT
+        # --------------------------------------------------------
+
+        return "chat"
+
+    # ============================================================
+    # OLLAMA ROUTING
+    # ============================================================
+
+    def route(
+        self,
+        question: str,
+        database_available: bool = True,
+        documents_available: bool = True,
+    ) -> str:
 
         question = self.normalize(
             question
         )
 
         if not question:
-            return "database"
+            return "chat"
 
-        # ------------------------------------------------------------
-        # 1. Explicit document phrases always win.
-        # ------------------------------------------------------------
+        if not ollama_client.is_available():
 
-        if any(
-            phrase in question
-            for phrase in self.DOCUMENT_PHRASES
-        ):
-            return "documents"
+            print(
+                "Ollama unavailable. "
+                "Using deterministic router."
+            )
 
-        # ------------------------------------------------------------
-        # 2. Explicit BOTH questions.
-        # ------------------------------------------------------------
+            return self.fallback_route(
+                question
+            )
 
-        if self._contains_keyword(
-            question,
-            self.BOTH_KEYWORDS
-        ):
-            return "both"
+        system_prompt = """
+You are the routing brain of an enterprise AI assistant.
 
-        # ------------------------------------------------------------
-        # 3. Reporting questions involving a month.
-        #
-        # Example:
-        # "What were the total sales in August 2026?"
-        #
-        # This must go to documents instead of SQL.
-        # ------------------------------------------------------------
+Classify the user's question into exactly ONE route:
 
-        if self._is_sales_reporting_question(
+chat
+database
+documents
+both
+
+ROUTE DEFINITIONS:
+
+chat:
+- Greetings
+- Casual conversation
+- General knowledge
+- Programming questions
+- Technical explanations
+- Writing help
+- Mathematics
+- Learning questions
+- Questions that do not require company data
+
+database:
+- Questions requiring structured business data
+- Sales records
+- Customers
+- Employees
+- Products
+- Payments
+- Inventory
+- Transactions
+- Counts
+- Totals
+- Averages
+- Rankings
+- Dates in business records
+- Any question asking for values that should come
+  from database tables
+
+documents:
+- Questions explicitly asking about uploaded files
+- PDFs
+- Reports
+- Manuals
+- Policies
+- Contracts
+- Presentations
+- Document content
+- "According to the report..."
+- "What does the document say?"
+- "What is mentioned in the PDF?"
+
+both:
+- The user explicitly requires information from both
+  database and documents.
+- Comparisons between database information and documents.
+
+IMPORTANT:
+
+A simple greeting such as:
+"hello"
+"hi"
+"good morning"
+must ALWAYS be classified as chat.
+
+A general question such as:
+"What is Python?"
+must be chat.
+
+Return ONLY JSON:
+
+{
+  "route": "chat"
+}
+
+or
+
+{
+  "route": "database"
+}
+
+or
+
+{
+  "route": "documents"
+}
+
+or
+
+{
+  "route": "both"
+}
+"""
+
+        user_prompt = f"""
+DATABASE AVAILABLE:
+{database_available}
+
+DOCUMENTS AVAILABLE:
+{documents_available}
+
+USER QUESTION:
+{question}
+
+Choose exactly one route.
+"""
+
+        try:
+
+            result = ollama_client.generate_json(
+                system_prompt,
+                user_prompt,
+            )
+
+            route = str(
+                result.get(
+                    "route",
+                    "",
+                )
+            ).strip().lower()
+
+            if route in {
+                "chat",
+                "database",
+                "documents",
+                "both",
+            }:
+
+                return route
+
+        except Exception as exc:
+
+            print(
+                "Ollama routing error:",
+                exc,
+            )
+
+        return self.fallback_route(
             question
-        ):
-            return "documents"
-
-        # ------------------------------------------------------------
-        # 4. Normal keyword detection.
-        # ------------------------------------------------------------
-
-        document_match = self._contains_keyword(
-            question,
-            self.DOCUMENT_KEYWORDS
         )
 
-        database_match = self._contains_keyword(
-            question,
-            self.DATABASE_KEYWORDS
-        )
 
-        # ------------------------------------------------------------
-        # 5. Document language wins when both types occur.
-        # ------------------------------------------------------------
-
-        if document_match:
-            return "documents"
-
-        # ------------------------------------------------------------
-        # 6. Database language.
-        # ------------------------------------------------------------
-
-        if database_match:
-            return "database"
-
-        # ------------------------------------------------------------
-        # 7. Default behavior.
-        # ------------------------------------------------------------
-
-        return "database"
-
-
-# ================================================================
-# GLOBAL ROUTER INSTANCE
-# ================================================================
+# ============================================================
+# GLOBAL ROUTER
+# ============================================================
 
 knowledge_router = KnowledgeRouter()
