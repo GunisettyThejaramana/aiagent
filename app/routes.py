@@ -1,3 +1,5 @@
+import re
+
 import pandas as pd
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -16,10 +18,6 @@ from app.agents.router_agent import route_question
 
 from app.services.search_service import SearchService
 
-
-
-
-
 from app.database_manager import (
     create_database_engine_from_saved_connection
 )
@@ -28,11 +26,9 @@ from app.custom_ai.custom_ai_engine import (
     CustomAIEngine
 )
 
-
 from app.custom_ai.document_knowledge_cache import (
     document_knowledge_cache
 )
-
 
 from app.custom_ai.knowledge_router import (
     knowledge_router
@@ -52,6 +48,7 @@ custom_ai_engine = CustomAIEngine()
 
 @router.get("/")
 def home():
+
     return {
         "message": "Enterprise AI Assistant Running"
     }
@@ -66,14 +63,617 @@ def create_sale(
     sale: schemas.SalesCreate,
     db: Session = Depends(get_db)
 ):
-    return crud.create_sale(db, sale)
+
+    return crud.create_sale(
+        db,
+        sale
+    )
 
 
 @router.get("/sales")
 def get_sales(
     db: Session = Depends(get_db)
 ):
-    return crud.get_sales(db)
+
+    return crud.get_sales(
+        db
+    )
+
+
+# ================================================================
+# DOCUMENT FALLBACK ANSWER
+# ================================================================
+
+def generate_document_fallback_answer(
+    question: str,
+    context: str
+):
+    """
+    Generate a useful answer directly from retrieved document
+    content when the LLM cannot generate the answer.
+
+    This is a fallback only.
+
+    It is especially useful for simple questions such as:
+
+        What were the total sales in August 2026?
+        What was the revenue in August 2026?
+        What is the sales target?
+        What was the actual sales amount?
+
+    The fallback does NOT replace the LLM.
+    """
+
+    if not context:
+        return (
+            "I found a relevant document, "
+            "but it did not contain readable content."
+        )
+
+    normalized_question = (
+        question
+        .lower()
+        .strip()
+    )
+
+    normalized_context = (
+        context
+        .replace("\u20b9", "₹")
+    )
+
+    # ============================================================
+    # TOTAL SALES / SALES VALUE
+    # ============================================================
+
+    sales_question = any(
+        phrase in normalized_question
+        for phrase in [
+            "total sales",
+            "sales total",
+            "total sale",
+            "sales value",
+            "total revenue",
+            "revenue"
+        ]
+    )
+
+    if sales_question:
+
+        patterns = [
+
+            # Total Sales: ₹1,301,950
+            r"(?:total\s+sales|sales\s+total)"
+            r"\s*[:\-]?\s*"
+            r"(?:₹|rs\.?|inr)?\s*"
+            r"([\d,]+(?:\.\d+)?)",
+
+            # Total Sales Value: 1,301,950
+            r"(?:total\s+sales\s+value)"
+            r"\s*[:\-]?\s*"
+            r"(?:₹|rs\.?|inr)?\s*"
+            r"([\d,]+(?:\.\d+)?)",
+
+            # Revenue: ₹1,301,950
+            r"(?:revenue)"
+            r"\s*[:\-]?\s*"
+            r"(?:₹|rs\.?|inr)?\s*"
+            r"([\d,]+(?:\.\d+)?)",
+
+            # Sales: ₹1,301,950
+            r"(?:sales)"
+            r"\s*[:\-]?\s*"
+            r"(?:₹|rs\.?|inr)?\s*"
+            r"([\d,]+(?:\.\d+)?)",
+        ]
+
+        for pattern in patterns:
+
+            match = re.search(
+                pattern,
+                normalized_context,
+                flags=re.IGNORECASE
+            )
+
+            if match:
+
+                value = match.group(1)
+
+                value = value.replace(
+                    ",",
+                    ""
+                )
+
+                try:
+
+                    numeric_value = float(
+                        value
+                    )
+
+                    if numeric_value.is_integer():
+
+                        formatted_value = (
+                            f"{int(numeric_value):,}"
+                        )
+
+                    else:
+
+                        formatted_value = (
+                            f"{numeric_value:,.2f}"
+                        )
+
+                    return (
+                        f"The total sales were "
+                        f"₹{formatted_value}."
+                    )
+
+                except ValueError:
+
+                    pass
+
+    # ============================================================
+    # TARGET
+    # ============================================================
+
+    target_question = any(
+        word in normalized_question
+        for word in [
+            "target",
+            "sales target"
+        ]
+    )
+
+    if target_question:
+
+        patterns = [
+
+            r"(?:sales\s+target|target)"
+            r"\s*[:\-]?\s*"
+            r"(?:₹|rs\.?|inr)?\s*"
+            r"([\d,]+(?:\.\d+)?)"
+        ]
+
+        for pattern in patterns:
+
+            match = re.search(
+                pattern,
+                normalized_context,
+                flags=re.IGNORECASE
+            )
+
+            if match:
+
+                value = match.group(1)
+
+                value = value.replace(
+                    ",",
+                    ""
+                )
+
+                try:
+
+                    numeric_value = float(
+                        value
+                    )
+
+                    if numeric_value.is_integer():
+
+                        formatted_value = (
+                            f"{int(numeric_value):,}"
+                        )
+
+                    else:
+
+                        formatted_value = (
+                            f"{numeric_value:,.2f}"
+                        )
+
+                    return (
+                        f"The sales target was "
+                        f"₹{formatted_value}."
+                    )
+
+                except ValueError:
+
+                    pass
+
+    # ============================================================
+    # ACTUAL SALES
+    # ============================================================
+
+    if (
+        "actual sales" in normalized_question
+        or "actual" in normalized_question
+    ):
+
+        patterns = [
+
+            r"(?:actual\s+sales|actual)"
+            r"\s*[:\-]?\s*"
+            r"(?:₹|rs\.?|inr)?\s*"
+            r"([\d,]+(?:\.\d+)?)"
+        ]
+
+        for pattern in patterns:
+
+            match = re.search(
+                pattern,
+                normalized_context,
+                flags=re.IGNORECASE
+            )
+
+            if match:
+
+                value = match.group(1)
+
+                value = value.replace(
+                    ",",
+                    ""
+                )
+
+                try:
+
+                    numeric_value = float(
+                        value
+                    )
+
+                    if numeric_value.is_integer():
+
+                        formatted_value = (
+                            f"{int(numeric_value):,}"
+                        )
+
+                    else:
+
+                        formatted_value = (
+                            f"{numeric_value:,.2f}"
+                        )
+
+                    return (
+                        f"The actual sales were "
+                        f"₹{formatted_value}."
+                    )
+
+                except ValueError:
+
+                    pass
+
+    # ============================================================
+    # VARIANCE
+    # ============================================================
+
+    if "variance" in normalized_question:
+
+        pattern = (
+            r"(?:variance)"
+            r"\s*[:\-]?\s*"
+            r"([+\-]?\s*[\d.]+)"
+            r"\s*%"
+        )
+
+        match = re.search(
+            pattern,
+            normalized_context,
+            flags=re.IGNORECASE
+        )
+
+        if match:
+
+            variance = (
+                match.group(1)
+                .replace(" ", "")
+            )
+
+            return (
+                f"The variance was "
+                f"{variance}%."
+            )
+
+    # ============================================================
+    # GENERAL FALLBACK
+    # ============================================================
+
+    # Return a short portion of the actual document content
+    # rather than an error message.
+
+    clean_context = re.sub(
+        r"\s+",
+        " ",
+        context
+    ).strip()
+
+    if len(clean_context) > 1000:
+
+        clean_context = (
+            clean_context[:1000]
+            + "..."
+        )
+
+    return (
+        "I found relevant information in "
+        "the local documents:\n\n"
+        f"{clean_context}"
+    )
+
+
+# ================================================================
+# DOCUMENT SEARCH HELPER
+# ================================================================
+
+def answer_from_documents(
+    question: str,
+    language: str,
+    user_id: str,
+    history: list,
+    database_id=None
+):
+
+    print(
+        "Searching local document knowledge base..."
+    )
+
+    # ------------------------------------------------------------
+    # SEARCH DOCUMENTS
+    # ------------------------------------------------------------
+
+    result = (
+        search_service.search_local_documents(
+            question
+        )
+    )
+
+    documents = result.get(
+        "documents",
+        []
+    )
+
+    print(
+        f"Documents matched: {len(documents)}"
+    )
+
+    if documents:
+
+        # --------------------------------------------------------
+        # BUILD DOCUMENT CONTEXT
+        # --------------------------------------------------------
+
+        document_parts = []
+
+        for doc in documents:
+
+            page_content = getattr(
+                doc,
+                "page_content",
+                ""
+            )
+
+            if page_content:
+
+                document_parts.append(
+                    page_content
+                )
+
+        context = "\n\n".join(
+            document_parts
+        )
+
+        if not context:
+
+            return {
+                "source": "documents",
+
+                "data_source": (
+                    "local_documents"
+                ),
+
+                "database_id": (
+                    database_id
+                ),
+
+                "question": (
+                    question
+                ),
+
+                "sql": None,
+
+                "answer": (
+                    "I found a matching document, "
+                    "but it contains no readable text."
+                ),
+
+                "rows": [],
+
+                "columns": [],
+
+                "memory_count": (
+                    len(history)
+                ),
+
+                "ai_engine": (
+                    "document_search"
+                )
+            }
+
+        # --------------------------------------------------------
+        # DOCUMENT DATAFRAME
+        # --------------------------------------------------------
+
+        document_df = pd.DataFrame(
+            {
+                "Document Content": [
+                    context
+                ]
+            }
+        )
+
+        print(
+            "Generating answer from document context..."
+        )
+
+        # --------------------------------------------------------
+        # TRY LLM
+        # --------------------------------------------------------
+
+        answer = None
+
+        try:
+
+            answer = ask_llm(
+                question,
+                document_df,
+                language
+            )
+
+            if answer:
+
+                answer = str(
+                    answer
+                ).strip()
+
+        except Exception as exc:
+
+            import traceback
+
+            print(
+                "Document LLM generation failed:"
+                f" {exc}"
+            )
+
+            traceback.print_exc()
+
+            answer = None
+
+        # --------------------------------------------------------
+        # FALLBACK
+        # --------------------------------------------------------
+
+        if not answer:
+
+            print(
+                "Using document content fallback."
+            )
+
+            answer = (
+                generate_document_fallback_answer(
+                    question,
+                    context
+                )
+            )
+
+        # --------------------------------------------------------
+        # SAVE MEMORY
+        # --------------------------------------------------------
+
+        add_message(
+            user_id,
+            "assistant",
+            answer
+        )
+
+        print(
+            f"Document Answer: {answer}"
+        )
+
+        # --------------------------------------------------------
+        # RETURN DOCUMENT RESULT
+        # --------------------------------------------------------
+
+        return {
+            "source": "documents",
+
+            "data_source": (
+                "local_documents"
+            ),
+
+            "database_id": (
+                database_id
+            ),
+
+            "question": (
+                question
+            ),
+
+            "sql": None,
+
+            "answer": answer,
+
+            "rows": [],
+
+            "columns": [],
+
+            "memory_count": (
+                len(history)
+            ),
+
+            "ai_engine": (
+                "document_search"
+            ),
+
+            "document_count": (
+                len(documents)
+            ),
+
+            "document_score": (
+                result.get(
+                    "score",
+                    0
+                )
+            ),
+
+            "document_source": (
+                result.get(
+                    "source"
+                )
+            )
+        }
+
+    # ------------------------------------------------------------
+    # NO DOCUMENTS
+    # ------------------------------------------------------------
+
+    print(
+        "No matching local documents found."
+    )
+
+    return {
+        "source": "documents",
+
+        "data_source": (
+            "local_documents"
+        ),
+
+        "database_id": (
+            database_id
+        ),
+
+        "question": (
+            question
+        ),
+
+        "sql": None,
+
+        "answer": (
+            "No matching local "
+            "documents found."
+        ),
+
+        "rows": [],
+
+        "columns": [],
+
+        "memory_count": (
+            len(history)
+        ),
+
+        "ai_engine": (
+            "document_search"
+        ),
+
+        "document_count": 0,
+
+        "document_score": 0,
+
+        "document_source": None
+    }
 
 
 # ================================================================
@@ -90,16 +690,54 @@ def ask_ai(
     print("🚀 NEW REQUEST")
     print("=" * 60)
 
-    print(f"Question    : {request.question}")
-    print(f"User ID     : {request.user_id}")
-    print(f"Language    : {request.language}")
-    print(f"Database ID : {request.database_id}")
+    print(
+        f"Question    : {request.question}"
+    )
+
+    print(
+        f"User ID     : {request.user_id}"
+    )
+
+    print(
+        f"Language    : {request.language}"
+    )
+
+    print(
+        f"Database ID : {request.database_id}"
+    )
+
+    print(
+        "Knowledge Source Requested : "
+        f"{request.knowledge_source}"
+    )
 
     user_id = request.user_id
 
-    # ------------------------------------------------------------
+    # ============================================================
+    # KNOWLEDGE SOURCE
+    # ============================================================
+
+    requested_source = (
+        str(
+            request.knowledge_source
+            or "auto"
+        )
+        .strip()
+        .lower()
+    )
+
+    if requested_source not in {
+        "auto",
+        "database",
+        "documents",
+        "both",
+    }:
+
+        requested_source = "auto"
+
+    # ============================================================
     # MEMORY
-    # ------------------------------------------------------------
+    # ============================================================
 
     add_message(
         user_id,
@@ -107,114 +745,107 @@ def ask_ai(
         request.question
     )
 
-    history = get_memory(user_id)
+    history = get_memory(
+        user_id
+    )
 
     # ============================================================
-    # CASE 1:
-    # DATABASE SELECTED
-    #
-    # The selected database is available, but the Knowledge Router
-    # decides whether the question belongs to the database or
-    # local documents.
+    # DETERMINE KNOWLEDGE SOURCE
     # ============================================================
 
-    if request.database_id is not None:
+    if requested_source == "auto":
 
-        knowledge_source = knowledge_router.route(
-            request.question
+        knowledge_source = (
+            knowledge_router.route(
+                request.question
+            )
         )
+
+    else:
+
+        knowledge_source = (
+            requested_source
+        )
+
+    print(
+        f"Knowledge Source : {knowledge_source}"
+    )
+
+    # ============================================================
+    # DOCUMENT QUESTION
+    # ============================================================
+
+    if knowledge_source == "documents":
 
         print(
-            f"Knowledge Source : {knowledge_source}"
+            "Routing question to local documents."
         )
 
-        # ========================================================
-        # DOCUMENT QUESTION
-        # ========================================================
+        return answer_from_documents(
+            question=request.question,
+            language=request.language,
+            user_id=user_id,
+            history=history,
+            database_id=request.database_id
+        )
 
-        if knowledge_source == "documents":
+    # ============================================================
+    # BOTH
+    # ============================================================
 
-            print(
-                "Routing question to local documents."
+    if knowledge_source == "both":
+
+        print(
+            "Routing question to both sources."
+        )
+
+        document_result = (
+            answer_from_documents(
+                question=request.question,
+                language=request.language,
+                user_id=user_id,
+                history=history,
+                database_id=request.database_id
             )
+        )
 
-            result = (
-                search_service.search_local_documents(
-                    request.question
-                )
-            )
+        if document_result.get(
+            "rows"
+        ):
 
-            documents = result["documents"]
+            return document_result
 
-            if documents:
+        if document_result.get(
+            "answer"
+        ) != "No matching local documents found.":
 
-                context = "\n\n".join(
-                    doc.page_content
-                    for doc in documents
-                )
+            return document_result
 
-                document_df = pd.DataFrame(
-                    {
-                        "Document Content": [
-                            context
-                        ]
-                    }
-                )
+        if request.database_id is None:
 
-                answer = ask_llm(
-                    request.question,
-                    document_df,
-                    request.language
-                )
+            return document_result
 
-                add_message(
-                    user_id,
-                    "assistant",
-                    answer
-                )
+        print(
+            "No useful document result. "
+            "Continuing with database."
+        )
 
-                return {
-                    "source": "documents",
+        knowledge_source = "database"
 
-                    "data_source": (
-                        "local_documents"
-                    ),
+    # ============================================================
+    # DATABASE QUESTION
+    # ============================================================
 
-                    "database_id": (
-                        request.database_id
-                    ),
+    if knowledge_source == "database":
 
-                    "question": (
-                        request.question
-                    ),
-
-                    "sql": None,
-
-                    "answer": answer,
-
-                    "rows": [],
-
-                    "columns": [],
-
-                    "memory_count": (
-                        len(history)
-                    ),
-
-                    "ai_engine": (
-                        "document_search"
-                    )
-                }
+        if request.database_id is None:
 
             return {
-                "source": "documents",
+                "source": "database",
 
-                "data_source": (
-                    "local_documents"
-                ),
+                "data_source": "database",
 
-                "database_id": (
-                    request.database_id
-                ),
+                "database_id": None,
 
                 "question": (
                     request.question
@@ -223,8 +854,9 @@ def ask_ai(
                 "sql": None,
 
                 "answer": (
-                    "No matching local "
-                    "documents found."
+                    "Please connect or select "
+                    "a database for this "
+                    "database question."
                 ),
 
                 "rows": [],
@@ -235,14 +867,8 @@ def ask_ai(
                     len(history)
                 ),
 
-                "ai_engine": (
-                    "document_search"
-                )
+                "ai_engine": "custom_ai",
             }
-
-        # ========================================================
-        # DATABASE QUESTION
-        # ========================================================
 
         print(
             "Routing question to selected database."
@@ -251,6 +877,10 @@ def ask_ai(
         selected_engine = None
 
         try:
+
+            # ----------------------------------------------------
+            # DATABASE CONNECTION
+            # ----------------------------------------------------
 
             print(
                 f"Connecting to database "
@@ -275,14 +905,12 @@ def ask_ai(
                 "Starting Custom AI Engine..."
             )
 
-            # IMPORTANT:
-            # Pass database_id so the database knowledge cache
-            # uses "database 2" instead of "engine:<id>".
-
-            ai_result = custom_ai_engine.process(
-                request.question,
-                selected_engine,
-                database_id=request.database_id
+            ai_result = (
+                custom_ai_engine.process(
+                    request.question,
+                    selected_engine,
+                    database_id=request.database_id
+                )
             )
 
             print(
@@ -294,22 +922,27 @@ def ask_ai(
             )
 
             print(
-                ai_result.get("sql")
+                ai_result.get(
+                    "sql"
+                )
             )
 
             # ----------------------------------------------------
-            # CHECK CUSTOM AI EXECUTION RESULT
+            # EXECUTION RESULT
             # ----------------------------------------------------
 
-            execution = ai_result.get(
-                "execution",
-                {}
+            execution = (
+                ai_result.get(
+                    "execution",
+                    {}
+                )
             )
 
             if not isinstance(
                 execution,
                 dict
             ):
+
                 execution = {}
 
             if not execution.get(
@@ -317,30 +950,38 @@ def ask_ai(
                 False
             ):
 
-                reason = execution.get(
-                    "reason"
+                reason = (
+                    execution.get(
+                        "reason"
+                    )
                 )
 
                 if not reason:
 
-                    query_result = ai_result.get(
-                        "query",
-                        {}
+                    query_result = (
+                        ai_result.get(
+                            "query",
+                            {}
+                        )
                     )
 
                     if isinstance(
                         query_result,
                         dict
                     ):
-                        reason = query_result.get(
-                            "reason"
+
+                        reason = (
+                            query_result.get(
+                                "reason"
+                            )
                         )
 
                 if not reason:
 
                     reason = (
-                        "The Custom AI could not "
-                        "answer the question."
+                        "The Custom AI "
+                        "could not answer "
+                        "the question."
                     )
 
                 raise HTTPException(
@@ -349,32 +990,41 @@ def ask_ai(
                 )
 
             # ----------------------------------------------------
-            # GET EXECUTION RESULT
+            # GET RESULT
             # ----------------------------------------------------
 
-            rows = execution.get(
-                "rows",
-                []
+            rows = (
+                execution.get(
+                    "rows",
+                    []
+                )
             )
 
-            columns = execution.get(
-                "columns",
-                []
+            columns = (
+                execution.get(
+                    "columns",
+                    []
+                )
             )
 
-            sql = ai_result.get(
-                "sql"
+            sql = (
+                ai_result.get(
+                    "sql"
+                )
             )
 
-            answer = ai_result.get(
-                "answer"
+            answer = (
+                ai_result.get(
+                    "answer"
+                )
             )
 
             if not answer:
 
                 answer = (
-                    "The Custom AI could not "
-                    "generate an answer."
+                    "The Custom AI "
+                    "could not generate "
+                    "an answer."
                 )
 
             print(
@@ -386,7 +1036,7 @@ def ask_ai(
             )
 
             # ----------------------------------------------------
-            # SAVE ASSISTANT RESPONSE TO MEMORY
+            # SAVE RESPONSE
             # ----------------------------------------------------
 
             add_message(
@@ -396,7 +1046,7 @@ def ask_ai(
             )
 
             # ----------------------------------------------------
-            # RETURN DATABASE RESPONSE
+            # RETURN
             # ----------------------------------------------------
 
             return {
@@ -426,27 +1076,36 @@ def ask_ai(
                     len(history)
                 ),
 
-                # Custom AI information
                 "ai_engine": "custom_ai",
 
-                "intent": ai_result.get(
-                    "intent"
+                "intent": (
+                    ai_result.get(
+                        "intent"
+                    )
                 ),
 
-                "entities": ai_result.get(
-                    "entities"
+                "entities": (
+                    ai_result.get(
+                        "entities"
+                    )
                 ),
 
-                "metric": ai_result.get(
-                    "metric"
+                "metric": (
+                    ai_result.get(
+                        "metric"
+                    )
                 ),
 
-                "query_plan": ai_result.get(
-                    "query_plan"
+                "query_plan": (
+                    ai_result.get(
+                        "query_plan"
+                    )
                 ),
 
-                "processing_time": ai_result.get(
-                    "processing_time"
+                "processing_time": (
+                    ai_result.get(
+                        "processing_time"
+                    )
                 )
             }
 
@@ -482,25 +1141,13 @@ def ask_ai(
 
         finally:
 
-            # IMPORTANT:
-            #
-            # Do NOT call:
-            #
-            # selected_engine.dispose()
-            #
-            # The database manager keeps engines in an
-            # in-memory connection cache.
-            #
-            # Disposing here would destroy the connection pool
-            # and cause a new connection to be created repeatedly.
+            # The database manager maintains
+            # its own engine connection cache.
 
             pass
 
     # ============================================================
-    # CASE 2:
-    # NO DATABASE SELECTED
-    #
-    # Keep existing application behavior.
+    # LEGACY ROUTING
     # ============================================================
 
     source = route_question(
@@ -517,90 +1164,15 @@ def ask_ai(
 
     if source == "documents":
 
-        result = (
-            search_service.search_local_documents(
-                request.question
-            )
+        return answer_from_documents(
+            question=request.question,
+            language=request.language,
+            user_id=user_id,
+            history=history
         )
 
-        documents = result["documents"]
-
-        if documents:
-
-            context = "\n\n".join(
-                doc.page_content
-                for doc in documents
-            )
-
-            document_df = pd.DataFrame(
-                {
-                    "Document Content": [
-                        context
-                    ]
-                }
-            )
-
-            answer = ask_llm(
-                request.question,
-                document_df,
-                request.language
-            )
-
-            add_message(
-                user_id,
-                "assistant",
-                answer
-            )
-
-            return {
-                "source": "documents",
-
-                "data_source": (
-                    "local_documents"
-                ),
-
-                "question": (
-                    request.question
-                ),
-
-                "sql": None,
-
-                "answer": answer,
-
-                "rows": [],
-
-                "memory_count": (
-                    len(history)
-                )
-            }
-
-        return {
-            "source": "documents",
-
-            "data_source": (
-                "local_documents"
-            ),
-
-            "question": (
-                request.question
-            ),
-
-            "sql": None,
-
-            "answer": (
-                "No matching local "
-                "documents found."
-            ),
-
-            "rows": [],
-
-            "memory_count": (
-                len(history)
-            )
-        }
-
     # ============================================================
-    # EXISTING ROUTING
+    # GENERATE SQL
     # ============================================================
 
     sql = None
@@ -641,78 +1213,12 @@ def ask_ai(
 
     if sql is None:
 
-        result = (
-            search_service.search_local_documents(
-                request.question
-            )
+        return answer_from_documents(
+            question=request.question,
+            language=request.language,
+            user_id=user_id,
+            history=history
         )
-
-        documents = result["documents"]
-
-        if documents:
-
-            context = "\n\n".join(
-                doc.page_content
-                for doc in documents
-            )
-
-            document_df = pd.DataFrame(
-                {
-                    "Document Content": [
-                        context
-                    ]
-                }
-            )
-
-            answer = ask_llm(
-                request.question,
-                document_df,
-                request.language
-            )
-
-            return {
-                "source": source,
-
-                "data_source": (
-                    "local_documents"
-                ),
-
-                "question": (
-                    request.question
-                ),
-
-                "sql": None,
-
-                "answer": answer,
-
-                "rows": [],
-
-                "memory_count": (
-                    len(history)
-                )
-            }
-
-        return {
-            "source": source,
-
-            "data_source": "none",
-
-            "question": (
-                request.question
-            ),
-
-            "sql": None,
-
-            "answer": (
-                "No information found."
-            ),
-
-            "rows": [],
-
-            "memory_count": (
-                len(history)
-            )
-        }
 
     # ============================================================
     # EXISTING DATABASE QUERY
@@ -749,66 +1255,117 @@ def ask_ai(
 
     if dataframe.empty:
 
-        result = (
-            search_service.search_local_documents(
-                request.question
+        document_result = (
+            answer_from_documents(
+                question=request.question,
+                language=request.language,
+                user_id=user_id,
+                history=history
             )
         )
 
-        documents = result["documents"]
+        if document_result.get(
+            "data_source"
+        ) == "local_documents":
 
-        if documents:
+            if document_result.get(
+                "answer"
+            ) != "No matching local documents found.":
 
-            context = "\n\n".join(
-                doc.page_content
-                for doc in documents
+                document_result[
+                    "sql"
+                ] = sql
+
+                return document_result
+
+    # ============================================================
+    # EXISTING LLM DATABASE RESPONSE
+    # ============================================================
+
+    try:
+
+        answer = ask_llm(
+            request.question,
+            dataframe,
+            request.language
+        )
+
+    except Exception as exc:
+
+        import traceback
+
+        print(
+            f"Database LLM response failed: {exc}"
+        )
+
+        traceback.print_exc()
+
+        # --------------------------------------------------------
+        # Basic database fallback
+        # --------------------------------------------------------
+
+        if (
+            len(dataframe) == 1
+            and len(dataframe.columns) == 1
+        ):
+
+            column_name = (
+                dataframe.columns[0]
             )
 
-            document_df = pd.DataFrame(
-                {
-                    "Document Content": [
-                        context
-                    ]
-                }
-            )
+            value = dataframe.iloc[
+                0,
+                0
+            ]
 
-            answer = ask_llm(
-                request.question,
-                document_df,
-                request.language
-            )
+            if pd.notna(value):
 
-            return {
-                "source": "documents",
+                try:
 
-                "data_source": (
-                    "local_documents"
-                ),
+                    numeric_value = float(
+                        value
+                    )
 
-                "question": (
-                    request.question
-                ),
+                    if numeric_value.is_integer():
 
-                "sql": sql,
+                        formatted_value = (
+                            f"{int(numeric_value):,}"
+                        )
 
-                "answer": answer,
+                    else:
 
-                "rows": [],
+                        formatted_value = (
+                            f"{numeric_value:,.2f}"
+                        )
 
-                "memory_count": (
-                    len(history)
+                    answer = (
+                        f"The {column_name.replace('_', ' ')} "
+                        f"is {formatted_value}."
+                    )
+
+                except (
+                    TypeError,
+                    ValueError
+                ):
+
+                    answer = (
+                        f"The {column_name.replace('_', ' ')} "
+                        f"is {value}."
+                    )
+
+            else:
+
+                answer = (
+                    "The database returned no value."
                 )
-            }
 
-    # ============================================================
-    # EXISTING LLM RESPONSE
-    # ============================================================
+        else:
 
-    answer = ask_llm(
-        request.question,
-        dataframe,
-        request.language
-    )
+            answer = (
+                "The database query completed "
+                "successfully, but I could not "
+                "generate a natural-language answer."
+            )
 
     add_message(
         user_id,
@@ -839,62 +1396,131 @@ def ask_ai(
     }
 
 
-
-
-
-
 # ================================================================
 # DOCUMENTS
 # ================================================================
 
 @router.get("/documents")
 def get_documents():
+
     """
     Return list of locally scanned documents
     and cache status for the Documents UI.
     """
 
     try:
-        # Prefer already-built cache; avoid long blocking scans when possible
-        if not document_knowledge_cache.is_ready():
-            try:
-                document_knowledge_cache.build()
-            except Exception as build_err:
-                print(f"Document cache build warning: {build_err}")
 
-        info = document_knowledge_cache.get_info()
-        metadata = document_knowledge_cache.get_file_metadata()
+        # --------------------------------------------------------
+        # BUILD CACHE IF NEEDED
+        # --------------------------------------------------------
+
+        if not document_knowledge_cache.is_ready():
+
+            try:
+
+                document_knowledge_cache.build()
+
+            except Exception as build_err:
+
+                print(
+                    "Document cache build warning: "
+                    f"{build_err}"
+                )
+
+        # --------------------------------------------------------
+        # CACHE INFORMATION
+        # --------------------------------------------------------
+
+        info = (
+            document_knowledge_cache.get_info()
+        )
+
+        metadata = (
+            document_knowledge_cache.get_file_metadata()
+        )
 
         files = []
 
         for path, meta in metadata.items():
-            files.append({
-                "name": meta.get("name", ""),
-                "path": meta.get("path", path),
-                "suffix": meta.get("suffix", ""),
-                "size": meta.get("size", 0),
-                "modified_time": meta.get("modified_time", 0),
-                "document_count": meta.get("document_count", 0),
-            })
 
-        files.sort(key=lambda f: f["name"].lower())
+            files.append(
+                {
+                    "name": meta.get(
+                        "name",
+                        ""
+                    ),
+
+                    "path": meta.get(
+                        "path",
+                        path
+                    ),
+
+                    "suffix": meta.get(
+                        "suffix",
+                        ""
+                    ),
+
+                    "size": meta.get(
+                        "size",
+                        0
+                    ),
+
+                    "modified_time": meta.get(
+                        "modified_time",
+                        0
+                    ),
+
+                    "document_count": meta.get(
+                        "document_count",
+                        0
+                    ),
+                }
+            )
+
+        files.sort(
+            key=lambda f: f["name"].lower()
+        )
 
         return {
-            "ready": info.get("ready", False),
-            "document_count": info.get("document_count", 0),
-            "file_count": info.get("file_count", 0),
-            "scan_paths": info.get("scan_paths", []),
+            "ready": info.get(
+                "ready",
+                False
+            ),
+
+            "document_count": info.get(
+                "document_count",
+                0
+            ),
+
+            "file_count": info.get(
+                "file_count",
+                0
+            ),
+
+            "scan_paths": info.get(
+                "scan_paths",
+                []
+            ),
+
             "files": files,
         }
 
     except Exception as e:
-        # Never hang the UI — return empty list with error message
-        print(f"/documents error: {e}")
+
+        print(
+            f"/documents error: {e}"
+        )
+
         return {
             "ready": False,
+
             "document_count": 0,
+
             "file_count": 0,
+
             "scan_paths": [],
+
             "files": [],
+
             "error": str(e),
         }

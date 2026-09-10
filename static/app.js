@@ -17,6 +17,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const databaseSelect = $("databaseSelect");
     const databaseCount = $("databaseCount");
+    const knowledgeSourceSelect = $("knowledgeSourceSelect");
 
     const databaseManagementList =
         $("databaseManagementList");
@@ -47,12 +48,17 @@ document.addEventListener("DOMContentLoaded", () => {
     let databases = [];
     let selectedDatabase = null;
     let selectedDatabaseType = "PostgreSQL";
+    let selectedKnowledgeSource = "auto";
 
     let recognition = null;
     let voices = [];
 
     let sourceModal = null;
     let databaseModal = null;
+
+    if (knowledgeSourceSelect) {
+        knowledgeSourceSelect.value = "auto";
+    }
 
 
     function getHeaders() {
@@ -275,13 +281,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 String(db.id);
         }
 
-        const label =
-            $("selectedSourceLabel");
-
-        if (label) {
-            label.textContent =
-                `AI is connected to ${db.name} and can query its business data.`;
-        }
+        updateKnowledgeSourceLabel();
     }
 
 
@@ -303,6 +303,50 @@ document.addEventListener("DOMContentLoaded", () => {
                 selectDatabase(db);
             }
         );
+    }
+
+
+    if (knowledgeSourceSelect) {
+        knowledgeSourceSelect.addEventListener(
+            "change",
+            () => {
+                selectedKnowledgeSource =
+                    knowledgeSourceSelect.value || "auto";
+
+                updateKnowledgeSourceLabel();
+            }
+        );
+    }
+
+    function updateKnowledgeSourceLabel() {
+        const label = $("selectedSourceLabel");
+
+        if (!label) {
+            return;
+        }
+
+        if (selectedKnowledgeSource === "documents") {
+            label.textContent =
+                "AI will answer from your indexed local documents.";
+            return;
+        }
+
+        if (selectedKnowledgeSource === "database") {
+            label.textContent =
+                selectedDatabase
+                    ? `AI will query ${selectedDatabase.name} for business data.`
+                    : "Select a database to query business data.";
+            return;
+        }
+
+        if (selectedKnowledgeSource === "both") {
+            label.textContent =
+                "AI can use both your connected database and indexed documents.";
+            return;
+        }
+
+        label.textContent =
+            "AI will automatically choose the best available knowledge source.";
     }
 
 
@@ -634,12 +678,14 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        if (!selectedDatabase) {
-
+        if (
+            (selectedKnowledgeSource === "database" ||
+             selectedKnowledgeSource === "both") &&
+            !selectedDatabase
+        ) {
             showAnswer(
-                "Please select a connected database first."
+                "Please select a connected database for this source."
             );
-
             return;
         }
 
@@ -676,9 +722,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 "en-US",
 
             database_id:
-                Number(
-                    selectedDatabase.id
-                )
+                selectedDatabase
+                    ? Number(selectedDatabase.id)
+                    : null,
+
+            knowledge_source:
+                selectedKnowledgeSource
         };
 
         try {

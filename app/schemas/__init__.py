@@ -28,6 +28,8 @@ class QuestionRequest(BaseModel):
     language: str = "en-US"
     database_id: int | None = None
 
+    knowledge_source: str = "auto"
+
 
 class AIResponse(BaseModel):
     answer: str

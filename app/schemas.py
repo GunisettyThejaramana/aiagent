@@ -27,6 +27,7 @@ class QuestionRequest(BaseModel):
     question: str
     language: str = "en-US"
     database_id: int | None = None
+    knowledge_source: str = "auto"
     
 
 
