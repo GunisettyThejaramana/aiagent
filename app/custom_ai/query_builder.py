@@ -1,47 +1,209 @@
+
 from __future__ import annotations
+
+import re
+from datetime import date
 
 
 class QueryBuilder:
     """
-    Converts the reasoning/query plan into safe read-only SQL.
+    Build safe read-only SQL from the actual database schema.
 
-    This component does not use an LLM.
-    It relies on:
-        - Intent Engine
-        - Entity Engine
-        - Metric Engine
-        - Reasoning Engine
-        - Query Planner
-        - Database schema
+    IMPORTANT:
+
+    This builder does NOT require:
+
+        sales -> sales table
+        revenue -> revenue column
+        balance -> balance column
+
+    Instead it searches the actual selected table's columns.
+
+    Example:
+
+        revenue
+
+        can resolve to:
+
+            revenue
+            sales_amount
+            grand_total
+            net_amount
+            invoice_total
+            total_value
+            amount
+
+        or:
+
+            quantity * price
     """
+
+    METRIC_ALIASES = {
+
+        "revenue": [
+            "revenue",
+            "sales",
+            "sale",
+            "turnover",
+            "income",
+            "amount",
+            "total",
+            "value",
+            "money",
+            "receipt",
+            "receipts",
+            "collection",
+            "collections",
+            "net_sales",
+            "gross_sales",
+            "sales_amount",
+            "sales_value",
+            "invoice_amount",
+            "invoice_total",
+            "bill_amount",
+            "grand_total",
+            "net_amount",
+            "gross_amount",
+        ],
+
+        "total_balance": [
+            "balance",
+            "total_balance",
+            "outstanding",
+            "remaining",
+            "due",
+            "receivable",
+            "payable",
+            "pending",
+        ],
+
+        "total_credit": [
+            "credit",
+            "credited",
+            "credit_amount",
+            "amount_credit",
+        ],
+
+        "total_debit": [
+            "debit",
+            "debited",
+            "debit_amount",
+            "amount_debit",
+        ],
+
+        "advance_amount": [
+            "advance",
+            "advanced",
+            "prepayment",
+        ],
+
+        "salary": [
+            "salary",
+            "wage",
+            "wages",
+            "pay",
+            "compensation",
+            "payroll",
+        ],
+
+        "quantity": [
+            "quantity",
+            "qty",
+            "units",
+            "unit_count",
+            "volume",
+            "count",
+        ],
+
+        "num_sarees": [
+            "num_sarees",
+            "saree_count",
+            "sarees_count",
+            "no_of_sarees",
+            "production_quantity",
+        ],
+
+        "price": [
+            "price",
+            "unit_price",
+            "selling_price",
+            "rate",
+            "cost",
+        ],
+
+        "amount": [
+            "amount",
+            "total_amount",
+            "net_amount",
+            "gross_amount",
+            "value",
+            "money",
+        ],
+
+        "profit": [
+            "profit",
+            "profit_amount",
+            "net_profit",
+            "gross_profit",
+            "margin",
+        ],
+
+        "loss": [
+            "loss",
+            "loss_amount",
+            "net_loss",
+            "gross_loss",
+        ],
+    }
+
+    SENSITIVE_WORDS = {
+        "password",
+        "password_hash",
+        "token",
+        "secret",
+        "api_key",
+        "aadhar",
+        "aadhaar",
+        "ifsc",
+        "account_number",
+    }
+
+    # =============================================================
+    # MAIN
+    # =============================================================
 
     def build(
         self,
-        question: str,
-        intent_result: dict,
-        entity_result: dict,
-        reasoning_result: dict,
-        schema: dict,
-        metric_result: dict | None = None,
-        query_plan: dict | None = None,
-    ) -> dict:
+        question,
+        intent_result,
+        entity_result,
+        reasoning_result,
+        schema,
+        metric_result=None,
+        query_plan=None,
+    ):
 
         intent = intent_result.get(
             "intent",
             "UNKNOWN",
         )
 
-        limit = entity_result.get(
-            "limit"
+        metric = (
+            metric_result.get("metric")
+            if metric_result
+            else None
         )
 
-        selected_table = reasoning_result.get(
-            "selected_table"
+        selected_table = (
+            reasoning_result.get(
+                "selected_table"
+            )
         )
 
         if not selected_table:
+
             return self._failure(
-                "No suitable table was found."
+                "No suitable table was found for this question."
             )
 
         table_name = selected_table.get(
@@ -53,383 +215,1199 @@ class QueryBuilder:
             [],
         )
 
-        if not table_name:
-            return self._failure(
-                "Selected table has no name."
+        if (
+            not table_name
+            or not self._safe_identifier(
+                table_name
             )
-
-        if not self._safe_identifier(
-            table_name
         ):
+
             return self._failure(
-                "Unsafe table name."
+                "Selected table has an invalid name."
             )
 
-        metric = None
+        # ---------------------------------------------------------
+        # Existing relationship support
+        # ---------------------------------------------------------
 
-        if metric_result:
-            metric = metric_result.get(
-                "metric"
-            )
-
-        # =========================================================
-        # 1. Relationship query
-        # =========================================================
-
-        if query_plan:
-
-            plan_type = query_plan.get(
+        if (
+            query_plan
+            and query_plan.get(
                 "plan_type"
+            ) == "RELATIONSHIP"
+        ):
+
+            return self._build_relationship_query(
+                question=question,
+                intent=intent,
+                entity_result=entity_result,
+                metric=metric,
+                query_plan=query_plan,
+                schema=schema,
             )
 
-            if plan_type == "RELATIONSHIP":
+        # ---------------------------------------------------------
+        # Normal single-table query
+        # ---------------------------------------------------------
 
-                return self._build_relationship_query(
-                    question=question,
-                    intent=intent,
-                    entity_result=entity_result,
-                    query_plan=query_plan,
-                    schema=schema,
+        return self._build_single_table(
+            question=question,
+            intent=intent,
+            metric=metric,
+            table_name=table_name,
+            columns=columns,
+            entity_result=entity_result,
+        )
+
+    # =============================================================
+    # SINGLE TABLE
+    # =============================================================
+
+    def _build_single_table(
+        self,
+        question,
+        intent,
+        metric,
+        table_name,
+        columns,
+        entity_result,
+    ):
+
+        date_range = entity_result.get(
+            "date_range"
+        )
+
+        date_column = None
+
+        if date_range:
+
+            date_column = (
+                self._resolve_date_column(
+                    columns,
+                    question,
                 )
-
-            if plan_type == "DERIVED_METRIC":
-
-                return self._build_derived_metric_query(
-                    intent=intent,
-                    entity_result=entity_result,
-                    query_plan=query_plan,
-                    schema=schema,
-                )
-
-                # =========================================================
-        # 2. COUNT / QUANTITY
-        # =========================================================
-
-        if intent == "COUNT":
-
-            # The Query Planner may change COUNT into SUM when
-            # the question asks for a business quantity.
-            #
-            # Example:
-            #   "How many sarees were produced?"
-            #
-            # means:
-            #   SUM(num_sarees)
-            #
-            # while:
-            #   "How many production orders are there?"
-            #
-            # means:
-            #   COUNT(*)
-
-            aggregation = None
-
-            if query_plan:
-                aggregation = query_plan.get(
-                    "aggregation"
-                )
-
-            if (
-                aggregation == "SUM"
-                and metric
-            ):
-
-                numeric_column = (
-                    self._resolve_metric_column(
-                        metric=metric,
-                        columns=columns,
-                        question=question,
-                    )
-                )
-
-                if not numeric_column:
-
-                    return self._failure(
-                        "I could not determine which numeric "
-                        "column should be totaled."
-                    )
-
-                sql = (
-                    f"SELECT SUM({numeric_column}) "
-                    f"AS total_{numeric_column} "
-                    f"FROM {table_name}"
-                )
-
-                return self._success(
-                    sql
-                )
-
-            sql = (
-                f"SELECT COUNT(*) AS record_count "
-                f"FROM {table_name}"
             )
 
-            return self._success(
-                sql
+            if not date_column:
+
+                return self._failure(
+                    "I found the requested time period, "
+                    "but the selected table has no usable date column."
+                )
+
+        where_sql, params = (
+            self._date_filter(
+                date_column,
+                date_range,
             )
+        )
 
         # =========================================================
-        # 3. TOTAL
+        # TOTAL
         # =========================================================
 
         if intent == "TOTAL":
 
-            numeric_column = (
-                self._resolve_metric_column(
+            expression, label = (
+                self._resolve_aggregate_expression(
                     metric=metric,
                     columns=columns,
                     question=question,
                 )
             )
 
-            if not numeric_column:
+            if not expression:
 
                 return self._failure(
-                    "I could not determine which numeric "
-                    "column should be totaled."
+                    "I could not determine which database "
+                    "column represents the requested value."
                 )
 
             sql = (
-                f"SELECT SUM({numeric_column}) "
-                f"AS total_{numeric_column} "
+                f"SELECT SUM({expression}) "
+                f"AS {label} "
                 f"FROM {table_name}"
+                f"{where_sql}"
             )
 
             return self._success(
-                sql
+                sql,
+                params,
             )
 
         # =========================================================
-        # 4. AVERAGE
+        # AVERAGE
         # =========================================================
 
         if intent == "AVERAGE":
 
-            numeric_column = (
-                self._resolve_metric_column(
+            expression, label = (
+                self._resolve_aggregate_expression(
                     metric=metric,
                     columns=columns,
                     question=question,
                 )
             )
 
-            if not numeric_column:
+            if not expression:
 
                 return self._failure(
                     "I could not determine which numeric "
                     "column should be averaged."
                 )
 
+            clean_label = (
+                label.replace(
+                    "total_",
+                    "",
+                    1,
+                )
+            )
+
             sql = (
-                f"SELECT AVG({numeric_column}) "
-                f"AS average_{numeric_column} "
+                f"SELECT AVG({expression}) "
+                f"AS average_{clean_label} "
                 f"FROM {table_name}"
+                f"{where_sql}"
             )
 
             return self._success(
-                sql
+                sql,
+                params,
             )
 
-                # =========================================================
-        # 5. MAXIMUM
+        # =========================================================
+        # COUNT
         # =========================================================
 
-        if intent == "MAXIMUM":
+        if intent == "COUNT":
 
-            numeric_column = (
-                self._resolve_metric_column(
+            if metric in {
+                "quantity",
+                "num_sarees",
+            }:
+
+                expression, _ = (
+                    self._resolve_aggregate_expression(
+                        metric=metric,
+                        columns=columns,
+                        question=question,
+                    )
+                )
+
+                if expression:
+
+                    alias = (
+                        "total_"
+                        + self._safe_alias(
+                            metric
+                        )
+                    )
+
+                    sql = (
+                        f"SELECT SUM({expression}) "
+                        f"AS {alias} "
+                        f"FROM {table_name}"
+                        f"{where_sql}"
+                    )
+
+                    return self._success(
+                        sql,
+                        params,
+                    )
+
+            sql = (
+                f"SELECT COUNT(*) "
+                f"AS record_count "
+                f"FROM {table_name}"
+                f"{where_sql}"
+            )
+
+            return self._success(
+                sql,
+                params,
+            )
+
+        # =========================================================
+        # MAXIMUM / MINIMUM
+        # =========================================================
+
+        if intent in {
+            "MAXIMUM",
+            "MINIMUM",
+        }:
+
+            expression, label = (
+                self._resolve_aggregate_expression(
                     metric=metric,
                     columns=columns,
                     question=question,
                 )
             )
 
-            if not numeric_column:
+            if not expression:
 
                 return self._failure(
                     "I could not determine which numeric "
-                    "column should be maximized."
+                    "column should be compared."
                 )
 
-            # Questions such as:
-            #   "Who has the highest balance?"
-            #   "Which employee has the highest salary?"
-            #
-            # need the identity together with the value.
-            if self._asks_for_identity(question):
+            direction = (
+                "DESC"
+                if intent == "MAXIMUM"
+                else "ASC"
+            )
 
-                display_columns = (
+            if self._asks_for_identity(
+                question
+            ):
+
+                display = (
                     self._select_identity_columns(
                         columns
                     )
                 )
 
-                if not display_columns:
-                    display_columns = ["id"]
-
-                if numeric_column not in display_columns:
-                    display_columns.append(
-                        numeric_column
+                if (
+                    expression
+                    and self._safe_identifier(
+                        expression
                     )
+                    and expression not in display
+                ):
+
+                    display.append(
+                        expression
+                    )
+
+                if not display:
+
+                    display = [
+                        expression
+                    ]
 
                 sql = (
                     f"SELECT "
-                    f"{', '.join(display_columns)} "
-                    f"FROM {table_name} "
-                    f"ORDER BY {numeric_column} DESC "
+                    f"{', '.join(display)} "
+                    f"FROM {table_name}"
+                    f"{where_sql} "
+                    f"ORDER BY {expression} "
+                    f"{direction} "
                     f"LIMIT 1"
                 )
 
                 return self._success(
-                    sql
+                    sql,
+                    params,
                 )
 
+            aggregate = (
+                "MAX"
+                if intent == "MAXIMUM"
+                else "MIN"
+            )
+
+            prefix = (
+                "maximum_"
+                if intent == "MAXIMUM"
+                else "minimum_"
+            )
+
+            alias = (
+                prefix
+                + self._safe_alias(
+                    metric
+                    or expression
+                )
+            )
+
             sql = (
-                f"SELECT MAX({numeric_column}) "
-                f"AS maximum_{numeric_column} "
+                f"SELECT {aggregate}({expression}) "
+                f"AS {alias} "
                 f"FROM {table_name}"
+                f"{where_sql}"
             )
 
             return self._success(
-                sql
+                sql,
+                params,
             )
 
-                # =========================================================
-        # 6. MINIMUM
+        # =========================================================
+        # TOP / BOTTOM
         # =========================================================
 
-        if intent == "MINIMUM":
+        if intent in {
+            "TOP",
+            "BOTTOM",
+        }:
 
-            numeric_column = (
-                self._resolve_metric_column(
+            expression, _ = (
+                self._resolve_aggregate_expression(
                     metric=metric,
                     columns=columns,
                     question=question,
                 )
             )
 
-            if not numeric_column:
+            if not expression:
 
                 return self._failure(
                     "I could not determine which numeric "
-                    "column should be minimized."
+                    "value should be used for ranking."
                 )
 
-            # Questions such as:
-            #   "Who has the lowest balance?"
-            #   "Which employee has the lowest salary?"
-            #
-            # need the identity together with the value.
-            if self._asks_for_identity(question):
+            identity = (
+                self._select_identity_columns(
+                    columns
+                )
+            )
 
-                display_columns = (
-                    self._select_identity_columns(
+            if not identity:
+
+                identity = (
+                    self._select_display_columns(
                         columns
-                    )
+                    )[:2]
                 )
 
-                if not display_columns:
-                    display_columns = ["id"]
+            if (
+                self._safe_identifier(
+                    expression
+                )
+                and expression not in identity
+            ):
 
-                if numeric_column not in display_columns:
-                    display_columns.append(
-                        numeric_column
-                    )
-
-                sql = (
-                    f"SELECT "
-                    f"{', '.join(display_columns)} "
-                    f"FROM {table_name} "
-                    f"ORDER BY {numeric_column} ASC "
-                    f"LIMIT 1"
+                identity.append(
+                    expression
                 )
 
-                return self._success(
-                    sql
-                )
+            limit = max(
+                1,
+                min(
+                    int(
+                        entity_result.get(
+                            "limit"
+                        )
+                        or 5
+                    ),
+                    100,
+                ),
+            )
+
+            direction = (
+                "DESC"
+                if intent == "TOP"
+                else "ASC"
+            )
 
             sql = (
-                f"SELECT MIN({numeric_column}) "
-                f"AS minimum_{numeric_column} "
+                f"SELECT "
+                f"{', '.join(identity)} "
                 f"FROM {table_name}"
+                f"{where_sql} "
+                f"ORDER BY {expression} "
+                f"{direction} "
+                f"LIMIT {limit}"
             )
 
             return self._success(
-                sql
+                sql,
+                params,
             )
 
         # =========================================================
-        # 7. TOP
+        # LIST / FILTER / GROUP
         # =========================================================
 
-        if intent == "TOP":
+        if intent in {
+            "LIST",
+            "FILTER",
+            "GROUP_BY",
+        }:
 
-            return self._build_rank_query(
-                table_name=table_name,
-                columns=columns,
-                limit=limit or 5,
-                descending=True,
-                metric=metric,
-                question=question,
-            )
-
-        # =========================================================
-        # 8. BOTTOM
-        # =========================================================
-
-        if intent == "BOTTOM":
-
-            return self._build_rank_query(
-                table_name=table_name,
-                columns=columns,
-                limit=limit or 5,
-                descending=False,
-                metric=metric,
-                question=question,
-            )
-
-        # =========================================================
-        # 9. LIST
-        # =========================================================
-
-        if intent == "LIST":
-
-            selected_columns = (
+            display = (
                 self._select_display_columns(
                     columns
                 )
             )
 
-            if not selected_columns:
+            if not display:
 
                 return self._failure(
-                    "No usable columns were found."
+                    "No safe display columns were found."
                 )
 
             sql = (
                 f"SELECT "
-                f"{', '.join(selected_columns)} "
+                f"{', '.join(display)} "
                 f"FROM {table_name}"
+                f"{where_sql}"
             )
 
-            if limit:
+            if intent == "GROUP_BY":
 
-                sql += (
-                    f" LIMIT {int(limit)}"
+                question_lower = (
+                    question.lower()
                 )
 
-            else:
+                if (
+                    "by month"
+                    in question_lower
+                    or "monthly"
+                    in question_lower
+                ):
 
-                sql += " LIMIT 50"
+                    if not date_column:
+
+                        return self._failure(
+                            "I could not find a date column "
+                            "for monthly grouping."
+                        )
+
+                    month_expression = (
+                        self._month_expression(
+                            date_column
+                        )
+                    )
+
+                    sql = (
+                        f"SELECT "
+                        f"{month_expression} AS month, "
+                        f"COUNT(*) AS record_count "
+                        f"FROM {table_name}"
+                        f"{where_sql} "
+                        f"GROUP BY {month_expression} "
+                        f"ORDER BY {month_expression}"
+                    )
+
+                elif (
+                    "by year"
+                    in question_lower
+                    and date_column
+                ):
+
+                    year_expression = (
+                        self._year_expression(
+                            date_column
+                        )
+                    )
+
+                    sql = (
+                        f"SELECT "
+                        f"{year_expression} AS year, "
+                        f"COUNT(*) AS record_count "
+                        f"FROM {table_name}"
+                        f"{where_sql} "
+                        f"GROUP BY {year_expression} "
+                        f"ORDER BY {year_expression}"
+                    )
+
+            sql += " LIMIT 100"
 
             return self._success(
-                sql
+                sql,
+                params,
             )
 
+        # =========================================================
+        # FALLBACK
+        # =========================================================
+
+        # If a metric exists, try a total rather than returning
+        # SQL=None for a natural business question.
+
+        if metric:
+
+            expression, label = (
+                self._resolve_aggregate_expression(
+                    metric=metric,
+                    columns=columns,
+                    question=question,
+                )
+            )
+
+            if expression:
+
+                sql = (
+                    f"SELECT SUM({expression}) "
+                    f"AS {label} "
+                    f"FROM {table_name}"
+                    f"{where_sql}"
+                )
+
+                return self._success(
+                    sql,
+                    params,
+                )
+
         return self._failure(
-            "I understand the database structure, "
-            f"but I do not yet know how to answer "
-            f"the intent '{intent}'."
+            f"I understand the question, but the intent "
+            f"'{intent}' is not supported."
+        )
+
+    # =============================================================
+    # METRIC RESOLUTION
+    # =============================================================
+
+    def _resolve_aggregate_expression(
+        self,
+        metric,
+        columns,
+        question,
+    ):
+
+        metric = (
+            metric
+            or self._metric_from_question(
+                question
+            )
+        )
+
+        numeric_columns = [
+            column
+            for column in columns
+            if (
+                self._is_numeric_type(
+                    column.get(
+                        "type",
+                        "",
+                    )
+                )
+                and self._safe_identifier(
+                    column.get(
+                        "name",
+                        "",
+                    )
+                )
+            )
+        ]
+
+        if not numeric_columns:
+
+            return None, None
+
+        aliases = set(
+            self.METRIC_ALIASES.get(
+                metric,
+                [],
+            )
+        )
+
+        question_tokens = (
+            self._tokens(question)
+        )
+
+        scored = []
+
+        for column in numeric_columns:
+
+            name = column[
+                "name"
+            ]
+
+            tokens = self._tokens(
+                name
+            )
+
+            compact = (
+                name.lower()
+            )
+
+            score = 0
+
+            # Exact alias.
+            if compact in aliases:
+
+                score += 100
+
+            # Token alias.
+            score += (
+                len(
+                    tokens & aliases
+                )
+                * 18
+            )
+
+            # Question vocabulary.
+            score += (
+                len(
+                    tokens
+                    & question_tokens
+                )
+                * 8
+            )
+
+            # -----------------------------------------------------
+            # Revenue
+            # -----------------------------------------------------
+
+            if metric == "revenue":
+
+                if tokens & {
+                    "sales",
+                    "sale",
+                    "revenue",
+                    "turnover",
+                    "income",
+                    "amount",
+                    "total",
+                    "value",
+                    "receipts",
+                    "collection",
+                    "collections",
+                    "net",
+                    "gross",
+                }:
+
+                    score += 35
+
+                if tokens & {
+                    "id",
+                    "number",
+                    "code",
+                }:
+
+                    score -= 40
+
+            # -----------------------------------------------------
+            # Balance
+            # -----------------------------------------------------
+
+            elif (
+                metric
+                == "total_balance"
+            ):
+
+                if tokens & {
+                    "balance",
+                    "outstanding",
+                    "remaining",
+                    "due",
+                    "pending",
+                    "receivable",
+                    "payable",
+                }:
+
+                    score += 70
+
+            # -----------------------------------------------------
+            # Salary
+            # -----------------------------------------------------
+
+            elif metric == "salary":
+
+                if tokens & {
+                    "salary",
+                    "wage",
+                    "wages",
+                    "pay",
+                    "compensation",
+                    "payroll",
+                }:
+
+                    score += 70
+
+            # -----------------------------------------------------
+            # Quantity
+            # -----------------------------------------------------
+
+            elif metric in {
+                "quantity",
+                "num_sarees",
+            }:
+
+                if tokens & {
+                    "quantity",
+                    "qty",
+                    "units",
+                    "count",
+                    "volume",
+                    "saree",
+                    "production",
+                }:
+
+                    score += 70
+
+            # -----------------------------------------------------
+            # Price
+            # -----------------------------------------------------
+
+            elif metric == "price":
+
+                if tokens & {
+                    "price",
+                    "rate",
+                    "cost",
+                    "selling",
+                }:
+
+                    score += 70
+
+            # -----------------------------------------------------
+            # Profit
+            # -----------------------------------------------------
+
+            elif metric == "profit":
+
+                if tokens & {
+                    "profit",
+                    "margin",
+                    "gain",
+                }:
+
+                    score += 70
+
+            # -----------------------------------------------------
+            # Loss
+            # -----------------------------------------------------
+
+            elif metric == "loss":
+
+                if "loss" in tokens:
+
+                    score += 70
+
+            scored.append(
+                (
+                    score,
+                    name,
+                )
+            )
+
+        scored.sort(
+            reverse=True
+        )
+
+        # Strong direct column.
+        if (
+            scored
+            and scored[0][0] >= 25
+        ):
+
+            return (
+                scored[0][1],
+                self._aggregate_label(
+                    metric,
+                    scored[0][1],
+                ),
+            )
+
+        # ---------------------------------------------------------
+        # Revenue = quantity * price
+        # ---------------------------------------------------------
+
+        if metric == "revenue":
+
+            quantity = (
+                self._find_by_alias(
+                    numeric_columns,
+                    {
+                        "quantity",
+                        "qty",
+                        "units",
+                        "unit_count",
+                    },
+                )
+            )
+
+            price = (
+                self._find_by_alias(
+                    numeric_columns,
+                    {
+                        "price",
+                        "unit_price",
+                        "selling_price",
+                        "rate",
+                        "cost",
+                    },
+                )
+            )
+
+            if quantity and price:
+
+                return (
+                    f"({quantity} * {price})",
+                    "total_revenue",
+                )
+
+        # ---------------------------------------------------------
+        # Generic amount fallback
+        # ---------------------------------------------------------
+
+        generic = (
+            self._find_by_alias(
+                numeric_columns,
+                {
+                    "amount",
+                    "total_amount",
+                    "value",
+                    "money",
+                    "total",
+                },
+            )
+        )
+
+        if (
+            generic
+            and metric in {
+                "revenue",
+                "amount",
+            }
+        ):
+
+            return (
+                generic,
+                self._aggregate_label(
+                    metric,
+                    generic,
+                ),
+            )
+
+        return None, None
+
+    # =============================================================
+    # ALIAS FINDER
+    # =============================================================
+
+    def _find_by_alias(
+        self,
+        columns,
+        aliases,
+    ):
+
+        best = None
+
+        best_score = -1
+
+        for column in columns:
+
+            name = column[
+                "name"
+            ]
+
+            tokens = self._tokens(
+                name
+            )
+
+            score = (
+                len(
+                    tokens & aliases
+                )
+                * 10
+            )
+
+            if (
+                name.lower()
+                in aliases
+            ):
+
+                score += 30
+
+            if score > best_score:
+
+                best_score = score
+
+                best = name
+
+        if best_score > 0:
+
+            return best
+
+        return None
+
+    # =============================================================
+    # METRIC FROM QUESTION
+    # =============================================================
+
+    @staticmethod
+    def _metric_from_question(
+        question,
+    ):
+
+        q = question.lower()
+
+        if any(
+            term in q
+            for term in (
+                "sales",
+                "sale",
+                "revenue",
+                "turnover",
+                "income",
+            )
+        ):
+
+            return "revenue"
+
+        if (
+            "balance" in q
+            or "outstanding" in q
+            or "due" in q
+        ):
+
+            return "total_balance"
+
+        if (
+            "salary" in q
+            or "wage" in q
+        ):
+
+            return "salary"
+
+        if (
+            "quantity" in q
+            or "qty" in q
+        ):
+
+            return "quantity"
+
+        if (
+            "profit" in q
+            or "margin" in q
+        ):
+
+            return "profit"
+
+        if "loss" in q:
+
+            return "loss"
+
+        return "amount"
+
+    # =============================================================
+    # LABEL
+    # =============================================================
+
+    @staticmethod
+    def _aggregate_label(
+        metric,
+        column,
+    ):
+
+        return {
+
+            "revenue":
+                "total_revenue",
+
+            "total_balance":
+                "total_balance",
+
+            "total_credit":
+                "total_credit",
+
+            "total_debit":
+                "total_debit",
+
+            "advance_amount":
+                "total_advance_amount",
+
+            "salary":
+                "total_salary",
+
+            "quantity":
+                "total_quantity",
+
+            "num_sarees":
+                "total_num_sarees",
+
+            "price":
+                "total_price",
+
+            "profit":
+                "total_profit",
+
+            "loss":
+                "total_loss",
+
+            "amount":
+                "total_amount",
+
+        }.get(
+            metric,
+            "total_"
+            + QueryBuilder._safe_alias(
+                column
+            ),
+        )
+
+    # =============================================================
+    # DATE COLUMN
+    # =============================================================
+
+    def _resolve_date_column(
+        self,
+        columns,
+        question,
+    ):
+
+        candidates = []
+
+        question_tokens = (
+            self._tokens(question)
+        )
+
+        for column in columns:
+
+            name = column.get(
+                "name",
+                "",
+            )
+
+            if not self._safe_identifier(
+                name
+            ):
+
+                continue
+
+            column_type = str(
+                column.get(
+                    "type",
+                    "",
+                )
+            ).upper()
+
+            tokens = self._tokens(
+                name
+            )
+
+            score = 0
+
+            if any(
+                x in column_type
+                for x in (
+                    "DATE",
+                    "TIMESTAMP",
+                    "DATETIME",
+                    "TIME",
+                )
+            ):
+
+                score += 100
+
+            if tokens & {
+                "date",
+                "datetime",
+                "timestamp",
+            }:
+
+                score += 80
+
+            if tokens & {
+                "created",
+                "updated",
+                "sold",
+                "issued",
+                "posted",
+                "recorded",
+            }:
+
+                score += 30
+
+            score += (
+                len(
+                    tokens
+                    & question_tokens
+                )
+                * 5
+            )
+
+            if tokens & {
+                "id",
+                "number",
+                "code",
+            }:
+
+                score -= 50
+
+            if score > 0:
+
+                candidates.append(
+                    (
+                        score,
+                        name,
+                    )
+                )
+
+        candidates.sort(
+            reverse=True
+        )
+
+        if candidates:
+
+            return candidates[0][1]
+
+        return None
+
+    # =============================================================
+    # DATE FILTER
+    # =============================================================
+
+    @staticmethod
+    def _date_filter(
+        date_column,
+        date_range,
+    ):
+
+        if (
+            not date_column
+            or not date_range
+        ):
+
+            return "", {}
+
+        start = date_range.get(
+            "start"
+        )
+
+        end = date_range.get(
+            "end"
+        )
+
+        if not start or not end:
+
+            return "", {}
+
+        return (
+            (
+                f" WHERE {date_column} "
+                f">= :date_start "
+                f"AND {date_column} "
+                f"< :date_end"
+            ),
+            {
+                "date_start":
+                    date.fromisoformat(
+                        start
+                    ),
+
+                "date_end":
+                    date.fromisoformat(
+                        end
+                    ),
+            },
+        )
+
+    # =============================================================
+    # GROUPING
+    # =============================================================
+
+    @staticmethod
+    def _month_expression(
+        column,
+    ):
+
+        return (
+            f"strftime('%Y-%m', {column})"
+        )
+
+    @staticmethod
+    def _year_expression(
+        column,
+    ):
+
+        return (
+            f"strftime('%Y', {column})"
         )
 
     # =============================================================
@@ -438,12 +1416,13 @@ class QueryBuilder:
 
     def _build_relationship_query(
         self,
-        question: str,
-        intent: str,
-        entity_result: dict,
-        query_plan: dict,
-        schema: dict,
-    ) -> dict:
+        question,
+        intent,
+        entity_result,
+        metric,
+        query_plan,
+        schema,
+    ):
 
         tables = query_plan.get(
             "tables",
@@ -455,48 +1434,37 @@ class QueryBuilder:
             [],
         )
 
-        if not tables:
-
-            return self._failure(
-                "No tables were provided by the query planner."
+        primary = (
+            query_plan.get(
+                "primary_table"
             )
-
-        if not joins:
-
-            return self._failure(
-                "No relationships were provided by the query planner."
+            or (
+                tables[0]
+                if tables
+                else None
             )
-
-        primary_table = query_plan.get(
-            "primary_table"
         )
 
-        if not primary_table:
+        if not primary or not joins:
 
-            primary_table = tables[0]
+            return self._failure(
+                "The relationship plan is incomplete."
+            )
 
-        if not self._safe_identifier(
-            primary_table
+        if any(
+            not self._safe_identifier(
+                table
+            )
+            for table in tables
         ):
 
             return self._failure(
-                "Unsafe primary table name."
+                "Unsafe table name in relationship plan."
             )
 
-        # ---------------------------------------------------------
-        # Determine useful columns
-        # ---------------------------------------------------------
-
-        select_columns = []
+        selected = []
 
         for table_name in tables:
-
-            if not self._safe_identifier(
-                table_name
-            ):
-                return self._failure(
-                    "Unsafe relationship table name."
-                )
 
             table = self._find_table(
                 schema,
@@ -504,92 +1472,47 @@ class QueryBuilder:
             )
 
             if not table:
+
                 continue
 
-            columns = table.get(
-                "columns",
-                [],
-            )
-
-            identity_columns = (
+            identities = (
                 self._select_identity_columns(
-                    columns
-                )
-            )
-
-            for column in identity_columns:
-
-                if not self._safe_identifier(
-                    column
-                ):
-                    continue
-
-                select_columns.append(
-                    f"{table_name}.{column}"
-                )
-
-        # ---------------------------------------------------------
-        # Fallback to IDs
-        # ---------------------------------------------------------
-
-        if not select_columns:
-
-            for table_name in tables:
-
-                table = self._find_table(
-                    schema,
-                    table_name,
-                )
-
-                if not table:
-                    continue
-
-                column_names = [
-                    column["name"]
-                    for column in table.get(
+                    table.get(
                         "columns",
                         [],
                     )
-                ]
-
-                if "id" in column_names:
-
-                    select_columns.append(
-                        f"{table_name}.id"
-                    )
-
-        if not select_columns:
-
-            return self._failure(
-                "No usable columns were found "
-                "for the relationship query."
+                )
             )
 
-        # ---------------------------------------------------------
-        # FROM
-        # ---------------------------------------------------------
+            for column in identities:
+
+                selected.append(
+                    f"{table_name}.{column}"
+                )
+
+        if not selected:
+
+            selected = [
+                f"{primary}.*"
+            ]
 
         sql = (
-            "SELECT "
-            + ", ".join(select_columns)
-            + f" FROM {primary_table}"
+            f"SELECT "
+            f"{', '.join(selected)} "
+            f"FROM {primary}"
         )
 
-        # ---------------------------------------------------------
-        # JOINs
-        # ---------------------------------------------------------
-
-        joined_tables = {
-            primary_table
+        joined = {
+            primary
         }
 
         for join in joins:
 
-            left_table = join.get(
+            left = join.get(
                 "left_table"
             )
 
-            right_table = join.get(
+            right = join.get(
                 "right_table"
             )
 
@@ -603,66 +1526,35 @@ class QueryBuilder:
                 [],
             )
 
-            if not left_table or not right_table:
+            if (
+                not left
+                or not right
+                or len(left_columns)
+                != len(right_columns)
+            ):
 
                 return self._failure(
                     "Invalid relationship definition."
                 )
 
-            if not left_columns or not right_columns:
-
-                return self._failure(
-                    "Relationship columns are missing."
-                )
-
-            if len(left_columns) != len(
-                right_columns
-            ):
-
-                return self._failure(
-                    "Relationship column counts do not match."
-                )
-
-            if not self._safe_identifier(
-                left_table
-            ):
-
-                return self._failure(
-                    "Unsafe left table name."
-                )
-
-            if not self._safe_identifier(
-                right_table
-            ):
-
-                return self._failure(
-                    "Unsafe right table name."
-                )
-
             conditions = []
 
-            for index in range(
-                len(left_columns)
+            for (
+                left_column,
+                right_column,
+            ) in zip(
+                left_columns,
+                right_columns,
             ):
 
-                left_column = left_columns[
-                    index
-                ]
-
-                right_column = right_columns[
-                    index
-                ]
-
-                if not self._safe_identifier(
-                    left_column
-                ):
-
-                    return self._failure(
-                        "Unsafe relationship column."
+                if (
+                    not self._safe_identifier(
+                        left_column
                     )
-
-                if not self._safe_identifier(
-                    right_column
+                    or
+                    not self._safe_identifier(
+                        right_column
+                    )
                 ):
 
                     return self._failure(
@@ -670,613 +1562,67 @@ class QueryBuilder:
                     )
 
                 conditions.append(
-                    f"{left_table}.{left_column} = "
-                    f"{right_table}.{right_column}"
+                    f"{left}.{left_column} = "
+                    f"{right}.{right_column}"
                 )
 
-            if right_table not in joined_tables:
+            if right not in joined:
 
                 sql += (
-                    f" JOIN {right_table}"
-                    f" ON {' AND '.join(conditions)}"
+                    f" JOIN {right} "
+                    f"ON "
+                    f"{' AND '.join(conditions)}"
                 )
 
-                joined_tables.add(
-                    right_table
+                joined.add(
+                    right
                 )
 
-        # ---------------------------------------------------------
-        # Limit
-        # ---------------------------------------------------------
-
-        limit = entity_result.get(
-            "limit"
+        limit = max(
+            1,
+            min(
+                int(
+                    entity_result.get(
+                        "limit"
+                    )
+                    or 100
+                ),
+                100,
+            ),
         )
 
-        if limit:
-
-            sql += (
-                f" LIMIT {int(limit)}"
-            )
-
-        else:
-
-            sql += " LIMIT 50"
+        sql += (
+            f" LIMIT {limit}"
+        )
 
         return self._success(
-            sql
+            sql,
+            {},
         )
 
     # =============================================================
-    # DERIVED METRIC QUERY
-    # =============================================================
-
-    def _build_derived_metric_query(
-        self,
-        intent: str,
-        entity_result: dict,
-        query_plan: dict,
-        schema: dict,
-    ) -> dict:
-
-        table_name = query_plan.get(
-            "primary_table"
-        )
-
-        expression = query_plan.get(
-            "metric_expression"
-        )
-
-        metric = query_plan.get(
-            "metric"
-        )
-
-        if not table_name:
-
-            return self._failure(
-                "Derived metric table is missing."
-            )
-
-        if not expression:
-
-            return self._failure(
-                "Derived metric expression is missing."
-            )
-
-        if not self._safe_identifier(
-            table_name
-        ):
-
-            return self._failure(
-                "Unsafe derived metric table."
-            )
-
-        # ---------------------------------------------------------
-        # Revenue
-        # ---------------------------------------------------------
-
-        if metric == "revenue":
-
-            if intent == "TOTAL":
-
-                sql = (
-                    "SELECT "
-                    "SUM(quantity * price) "
-                    "AS total_revenue "
-                    "FROM sales"
-                )
-
-                return self._success(
-                    sql
-                )
-
-            if intent == "AVERAGE":
-
-                sql = (
-                    "SELECT "
-                    "AVG(quantity * price) "
-                    "AS average_revenue "
-                    "FROM sales"
-                )
-
-                return self._success(
-                    sql
-                )
-
-            if intent == "MAXIMUM":
-
-                sql = (
-                    "SELECT "
-                    "MAX(quantity * price) "
-                    "AS maximum_revenue "
-                    "FROM sales"
-                )
-
-                return self._success(
-                    sql
-                )
-
-            if intent == "MINIMUM":
-
-                sql = (
-                    "SELECT "
-                    "MIN(quantity * price) "
-                    "AS minimum_revenue "
-                    "FROM sales"
-                )
-
-                return self._success(
-                    sql
-                )
-
-        return self._failure(
-            "The derived metric is not yet supported "
-            f"for intent '{intent}'."
-        )
-
-
-        # =============================================================
-    # IDENTITY QUESTION DETECTION
+    # TABLE FINDER
     # =============================================================
 
     @staticmethod
-    def _asks_for_identity(
-        question: str,
-    ) -> bool:
+    def _find_table(
+        schema,
+        name,
+    ):
 
-        normalized = (
-            str(question)
-            .lower()
-            .strip()
-        )
-
-        identity_phrases = [
-            "who ",
-            "who has",
-            "who had",
-            "who is",
-            "who was",
-            "which employee",
-            "which employees",
-            "which weaver",
-            "which weavers",
-            "which customer",
-            "which customers",
-            "which product",
-            "which products",
-            "which loom",
-            "which looms",
-            "which person",
-            "which people",
-        ]
-
-        return any(
-            phrase in normalized
-            for phrase in identity_phrases
-        )
-
-    # =============================================================
-    # RANK QUERY
-    # =============================================================
-
-    def _build_rank_query(
-        self,
-        table_name: str,
-        columns: list,
-        limit: int,
-        descending: bool,
-        metric: str | None,
-        question: str = "",
-    ) -> dict:
-
-        numeric_column = (
-            self._resolve_metric_column(
-                metric=metric,
-                columns=columns,
-                question=question,
-            )
-        )
-
-        if not numeric_column:
-
-            return self._failure(
-                "I could not determine which numeric "
-                "metric should be used for ranking."
-            )
-
-        display_columns = (
-            self._select_identity_columns(
-                columns
-            )
-        )
-
-        if not display_columns:
-
-            display_columns = [
-                "id"
-            ]
-
-        if numeric_column not in display_columns:
-
-            display_columns.append(
-                numeric_column
-            )
-
-        direction = (
-            "DESC"
-            if descending
-            else "ASC"
-        )
-
-        sql = (
-            f"SELECT "
-            f"{', '.join(display_columns)} "
-            f"FROM {table_name} "
-            f"ORDER BY "
-            f"{numeric_column} "
-            f"{direction} "
-            f"LIMIT {int(limit)}"
-        )
-
-        return self._success(
-            sql
-        )
-
-    # =============================================================
-    # METRIC COLUMN RESOLUTION
-    # =============================================================
-
-    def _resolve_metric_column(
-        self,
-        metric: str | None,
-        columns: list,
-        question: str = "",
-    ) -> str | None:
-
-        if not metric:
-            return None
-
-        column_names = [
-            column["name"]
-            for column in columns
-        ]
-
-        # ---------------------------------------------------------
-        # 1. Exact metric-column match
-        # ---------------------------------------------------------
-
-        for column_name in column_names:
+        for table in schema.get(
+            "tables",
+            [],
+        ):
 
             if (
-                column_name.lower()
-                == metric.lower()
+                table.get(
+                    "table_name"
+                )
+                == name
             ):
 
-                if self._is_numeric_type(
-                    self._get_column_type(
-                        columns,
-                        column_name,
-                    )
-                ):
-
-                    return column_name
-
-        # ---------------------------------------------------------
-        # 2. Business metric aliases
-        # ---------------------------------------------------------
-
-        aliases = {
-
-            "total_balance": [
-                "total_balance",
-                "balance",
-                "outstanding_balance",
-                "remaining_balance",
-                "amount_due",
-                "due_amount",
-            ],
-
-            "total_credit": [
-                "total_credit",
-                "amount_credit",
-                "credit",
-                "credited_amount",
-                "credit_amount",
-            ],
-
-            "total_debit": [
-                "total_debit",
-                "amount_debit",
-                "debit",
-                "debited_amount",
-                "debit_amount",
-            ],
-
-            "advance_amount": [
-                "advance_amount",
-                "advance",
-                "advance_money",
-            ],
-
-            "quantity": [
-                "quantity",
-                "qty",
-            ],
-
-            "price": [
-                "price",
-                "unit_price",
-                "cost",
-            ],
-
-            "salary": [
-                "salary",
-                "wage",
-                "wages",
-                "pay",
-                "compensation",
-            ],
-
-            "revenue": [
-                "revenue",
-                "amount",
-                "total_sales",
-            ],
-
-            "amount": [
-                "amount",
-                "price",
-                "total_amount",
-            ],
-
-            "num_sarees": [
-                "num_sarees",
-                "no_of_sarees",
-                "saree_count",
-                "sarees_count",
-                "production_quantity",
-            ],
-        }
-
-        possible_names = aliases.get(
-            metric,
-            [],
-        )
-
-        # ---------------------------------------------------------
-        # 3. Find exact alias in schema
-        # ---------------------------------------------------------
-
-        for possible_name in possible_names:
-
-            for column_name in column_names:
-
-                if (
-                    column_name.lower()
-                    == possible_name.lower()
-                ):
-
-                    if self._is_numeric_type(
-                        self._get_column_type(
-                            columns,
-                            column_name,
-                        )
-                    ):
-
-                        return column_name
-
-        # ---------------------------------------------------------
-        # 4. Business-language fallback
-        # ---------------------------------------------------------
-
-        normalized_question = (
-            str(question)
-            .lower()
-            .strip()
-        )
-
-        # Debit
-        if metric == "total_debit":
-
-            debit_candidates = [
-                "amount_debit",
-                "debit",
-                "debit_amount",
-                "debited_amount",
-            ]
-
-            result = self._find_numeric_candidate(
-                debit_candidates,
-                columns,
-            )
-
-            if result:
-                return result
-
-        # Credit
-        if metric == "total_credit":
-
-            credit_candidates = [
-                "amount_credit",
-                "credit",
-                "credit_amount",
-                "credited_amount",
-            ]
-
-            result = self._find_numeric_candidate(
-                credit_candidates,
-                columns,
-            )
-
-            if result:
-                return result
-
-        # Balance
-        if metric == "total_balance":
-
-            balance_candidates = [
-                "total_balance",
-                "balance",
-                "outstanding_balance",
-                "remaining_balance",
-                "amount_due",
-                "due_amount",
-            ]
-
-            result = self._find_numeric_candidate(
-                balance_candidates,
-                columns,
-            )
-
-            if result:
-                return result
-
-        # Advance
-        if metric == "advance_amount":
-
-            advance_candidates = [
-                "advance_amount",
-                "advance",
-                "advance_money",
-            ]
-
-            result = self._find_numeric_candidate(
-                advance_candidates,
-                columns,
-            )
-
-            if result:
-                return result
-
-        # Salary
-        if metric == "salary":
-
-            salary_candidates = [
-                "salary",
-                "wage",
-                "wages",
-                "pay",
-                "compensation",
-            ]
-
-            result = self._find_numeric_candidate(
-                salary_candidates,
-                columns,
-            )
-
-            if result:
-                return result
-
-        # Saree production
-        if metric == "num_sarees":
-
-            saree_candidates = [
-                "num_sarees",
-                "no_of_sarees",
-                "saree_count",
-                "sarees_count",
-                "production_quantity",
-            ]
-
-            result = self._find_numeric_candidate(
-                saree_candidates,
-                columns,
-            )
-
-            if result:
-                return result
-
-        # Quantity
-        if metric == "quantity":
-
-            quantity_candidates = [
-                "quantity",
-                "qty",
-            ]
-
-            result = self._find_numeric_candidate(
-                quantity_candidates,
-                columns,
-            )
-
-            if result:
-                return result
-
-        # Price
-        if metric == "price":
-
-            price_candidates = [
-                "price",
-                "unit_price",
-                "cost",
-            ]
-
-            result = self._find_numeric_candidate(
-                price_candidates,
-                columns,
-            )
-
-            if result:
-                return result
-
-        # Generic amount only as a final fallback.
-        if metric == "amount":
-
-            amount_candidates = [
-                "amount",
-                "total_amount",
-                "value",
-            ]
-
-            result = self._find_numeric_candidate(
-                amount_candidates,
-                columns,
-            )
-
-            if result:
-                return result
-
-        # Keep variable intentionally available for
-        # future business-language expansion.
-        _ = normalized_question
-
-        return None
-
-    # =============================================================
-    # FIND NUMERIC CANDIDATE
-    # =============================================================
-
-    def _find_numeric_candidate(
-        self,
-        candidates: list[str],
-        columns: list,
-    ) -> str | None:
-
-        for candidate in candidates:
-
-            for column in columns:
-
-                column_name = column.get(
-                    "name"
-                )
-
-                if not column_name:
-                    continue
-
-                if (
-                    column_name.lower()
-                    != candidate.lower()
-                ):
-                    continue
-
-                if self._is_numeric_type(
-                    self._get_column_type(
-                        columns,
-                        column_name,
-                    )
-                ):
-
-                    return column_name
+                return table
 
         return None
 
@@ -1286,56 +1632,61 @@ class QueryBuilder:
 
     @staticmethod
     def _select_identity_columns(
-        columns: list,
-    ) -> list[str]:
+        columns,
+    ):
 
-        preferred = [
+        result = []
 
-            "id",
-
-            "weavername",
-            "weaver_name",
-
-            "loom_no",
-            "loom_number",
-
-            "saree_number",
-            "saree_name",
-
-            "customer_name",
-
-            "product_name",
-
-            "employee_name",
-
-            "department",
-
+        identity_tokens = {
             "name",
-        ]
+            "number",
+            "code",
+            "title",
+            "description",
+            "email",
+        }
 
-        available = [
-            column["name"]
-            for column in columns
-        ]
+        for column in columns:
 
-        selected = []
+            name = column.get(
+                "name",
+                "",
+            )
 
-        for preferred_name in preferred:
+            if not QueryBuilder._safe_identifier(
+                name
+            ):
 
-            for actual_name in available:
+                continue
 
-                if (
-                    actual_name.lower()
-                    == preferred_name.lower()
-                ):
+            lower = name.lower()
 
-                    if actual_name not in selected:
+            if any(
+                word in lower
+                for word in QueryBuilder.SENSITIVE_WORDS
+            ):
 
-                        selected.append(
-                            actual_name
-                        )
+                continue
 
-        return selected[:5]
+            tokens = QueryBuilder._tokens(
+                name
+            )
+
+            if (
+                tokens
+                & identity_tokens
+                or lower == "id"
+            ):
+
+                result.append(
+                    name
+                )
+
+            if len(result) >= 5:
+
+                break
+
+        return result
 
     # =============================================================
     # DISPLAY COLUMNS
@@ -1343,90 +1694,87 @@ class QueryBuilder:
 
     @staticmethod
     def _select_display_columns(
-        columns: list,
-    ) -> list[str]:
+        columns,
+    ):
 
-        selected = []
-
-        sensitive_words = [
-
-            "password",
-            "password_hash",
-
-            "aadhar",
-
-            "account_number",
-
-            "ifsc",
-        ]
+        result = []
 
         for column in columns:
 
-            name = column["name"]
+            name = column.get(
+                "name",
+                "",
+            )
 
-            if any(
-                word in name.lower()
-                for word in sensitive_words
-            ):
-                continue
+            lower = name.lower()
 
             if not QueryBuilder._safe_identifier(
                 name
             ):
+
                 continue
 
-            selected.append(
+            if any(
+                word in lower
+                for word in QueryBuilder.SENSITIVE_WORDS
+            ):
+
+                continue
+
+            result.append(
                 name
             )
 
-        return selected[:10]
+            if len(result) >= 10:
+
+                break
+
+        return result
 
     # =============================================================
-    # FIND TABLE
-    # =============================================================
-
-    @staticmethod
-    def _find_table(
-        schema: dict,
-        table_name: str,
-    ) -> dict | None:
-
-        for table in schema.get(
-            "tables",
-            [],
-        ):
-
-            if (
-                table["table_name"]
-                == table_name
-            ):
-
-                return table
-
-        return None
-
-    # =============================================================
-    # COLUMN TYPE
+    # IDENTITY QUESTION
     # =============================================================
 
     @staticmethod
-    def _get_column_type(
-        columns: list,
-        column_name: str,
-    ) -> str:
+    def _asks_for_identity(
+        question,
+    ):
 
-        for column in columns:
+        return bool(
+            re.search(
+                r"\b("
+                r"who|which|name|person|"
+                r"employee|customer|weaver|"
+                r"loom|product"
+                r")\b",
+                question.lower(),
+            )
+        )
 
-            if (
-                column["name"].lower()
-                == column_name.lower()
-            ):
+    # =============================================================
+    # TOKENS
+    # =============================================================
 
-                return str(
-                    column["type"]
-                )
+    @staticmethod
+    def _tokens(
+        value,
+    ):
 
-        return ""
+        value = re.sub(
+            r"([a-z])([A-Z])",
+            r"\1 \2",
+            str(value),
+        ).lower()
+
+        return set(
+            re.findall(
+                r"[a-z0-9]+",
+                value.replace(
+                    "_",
+                    " ",
+                ),
+            )
+        )
 
     # =============================================================
     # NUMERIC TYPE
@@ -1434,31 +1782,46 @@ class QueryBuilder:
 
     @staticmethod
     def _is_numeric_type(
-        column_type: str,
-    ) -> bool:
+        value,
+    ):
 
-        numeric_types = [
-
-            "INTEGER",
-            "BIGINT",
-            "SMALLINT",
-
-            "DECIMAL",
-            "NUMERIC",
-
-            "REAL",
-            "DOUBLE",
-            "FLOAT",
-        ]
-
-        value = str(
-            column_type
+        text = str(
+            value
         ).upper()
 
         return any(
-            numeric_type in value
-            for numeric_type
-            in numeric_types
+            name in text
+            for name in (
+                "INTEGER",
+                "BIGINT",
+                "SMALLINT",
+                "DECIMAL",
+                "NUMERIC",
+                "REAL",
+                "DOUBLE",
+                "FLOAT",
+                "MONEY",
+            )
+        )
+
+    # =============================================================
+    # SAFE ALIAS
+    # =============================================================
+
+    @staticmethod
+    def _safe_alias(
+        value,
+    ):
+
+        value = re.sub(
+            r"[^a-zA-Z0-9_]",
+            "_",
+            str(value),
+        )
+
+        return (
+            value.strip("_")
+            or "value"
         )
 
     # =============================================================
@@ -1467,16 +1830,16 @@ class QueryBuilder:
 
     @staticmethod
     def _safe_identifier(
-        identifier: str,
-    ) -> bool:
+        identifier,
+    ):
 
-        if not identifier:
-            return False
-
-        return all(
-            character.isalnum()
-            or character == "_"
-            for character in identifier
+        return bool(
+            identifier
+        ) and bool(
+            re.fullmatch(
+                r"[A-Za-z_][A-Za-z0-9_]*",
+                str(identifier),
+            )
         )
 
     # =============================================================
@@ -1485,13 +1848,14 @@ class QueryBuilder:
 
     @staticmethod
     def _success(
-        sql: str,
-    ) -> dict:
+        sql,
+        params=None,
+    ):
 
         return {
             "success": True,
             "sql": sql,
-            "params": {},
+            "params": params or {},
             "reason": None,
         }
 
@@ -1501,8 +1865,8 @@ class QueryBuilder:
 
     @staticmethod
     def _failure(
-        reason: str,
-    ) -> dict:
+        reason,
+    ):
 
         return {
             "success": False,

@@ -1,23 +1,46 @@
+
 from __future__ import annotations
+
+import re
 
 
 class MetricEngine:
     """
-    Understands what business value the user wants to calculate.
+    Determines what business value the user wants.
 
-    This engine is database-independent.
-    It does not generate SQL.
+    This is intentionally database-independent.
+
+    IMPORTANT:
+
+    'revenue' does NOT mean that the database must contain
+    a column named revenue.
+
+    Later stages map the metric to the real database column.
+
+    Example:
+
+        revenue
+            ->
+        grand_total
+        net_amount
+        sales_value
+        invoice_total
+        total_amount
+        quantity * price
     """
 
     METRIC_KEYWORDS = {
+
         "total_balance": [
             "balance",
             "balances",
             "total balance",
             "remaining balance",
             "outstanding balance",
-            "outstanding",
+            "outstanding amount",
+            "amount due",
             "due balance",
+            "pending amount",
         ],
 
         "total_credit": [
@@ -36,8 +59,6 @@ class MetricEngine:
             "debited",
             "debit amount",
             "debited amount",
-            "amount debit",
-            "amount_debit",
         ],
 
         "advance_amount": [
@@ -45,14 +66,17 @@ class MetricEngine:
             "advance amount",
             "advances",
             "money given in advance",
+            "advance payment",
+            "prepayment",
         ],
 
         "quantity": [
             "quantity",
             "quantities",
-            "amount of",
+            "units",
+            "unit count",
             "number of items",
-            "items",
+            "volume",
         ],
 
         "price": [
@@ -60,26 +84,59 @@ class MetricEngine:
             "prices",
             "cost",
             "costs",
+            "rate",
             "unit price",
+            "selling price",
         ],
 
         "salary": [
             "salary",
             "salaries",
             "pay",
+            "wage",
             "wages",
+            "compensation",
+            "payroll",
+        ],
+
+        "profit": [
+            "profit",
+            "profits",
+            "profit amount",
+            "gain",
+            "gains",
+            "margin",
+        ],
+
+        "loss": [
+            "loss",
+            "losses",
+            "loss amount",
         ],
 
         "revenue": [
             "revenue",
+            "revenues",
+            "sales",
+            "sale",
             "turnover",
             "income",
             "sales revenue",
+            "sales amount",
+            "sales value",
+            "selling amount",
+            "selling value",
+            "receipts",
+            "collections",
         ],
 
         "amount": [
             "amount",
+            "amounts",
             "value",
+            "values",
+            "money",
+            "monetary value",
             "total amount",
         ],
 
@@ -91,195 +148,76 @@ class MetricEngine:
             "how many sarees",
             "saree quantity",
             "saree count",
-            "production count",
             "production quantity",
         ],
     }
 
-    # Default metric for ranking questions when the user
-    # does not explicitly specify what to rank by.
-    #
-    # Example:
-    #   "show top 5 weavers"
-    #       -> total_balance
-    #
-    #   "show top 5 employees"
-    #       -> salary
-    #
-    # Explicit metrics always take priority over these defaults.
     RANKING_DEFAULTS = {
+
         "weaver": "total_balance",
-        "weavers": "total_balance",
 
         "loom": "total_balance",
-        "looms": "total_balance",
 
         "employee": "salary",
-        "employees": "salary",
 
         "customer": "revenue",
-        "customers": "revenue",
 
         "sales": "revenue",
-        "sale": "revenue",
 
         "product": "revenue",
-        "products": "revenue",
 
         "saree": "amount",
-        "sarees": "amount",
 
         "order": "quantity",
-        "orders": "quantity",
 
         "material": "quantity",
-        "materials": "quantity",
 
         "payment": "amount",
-        "payments": "amount",
     }
 
-    # Stronger phrases should win over generic words.
-    PHRASE_PRIORITY = {
-        "total debit": 5,
-        "total credit": 5,
-        "total balance": 5,
-        "outstanding balance": 5,
-        "advance amount": 5,
-        "sarees produced": 5,
-        "saree produced": 5,
-        "produced sarees": 5,
-        "number of sarees": 5,
-        "how many sarees": 5,
-        "saree count": 5,
-        "sales revenue": 5,
-        "production quantity": 5,
-    }
-
-    RANKING_KEYWORDS = [
-        "top",
-        "highest",
-        "maximum",
-        "max",
-        "best",
-        "largest",
-        "bottom",
-        "lowest",
-        "minimum",
-        "min",
-        "worst",
-        "smallest",
-    ]
-
-    def _normalize(self, text: str) -> str:
-        return " ".join(
-            (text or "").lower().strip().split()
-        )
-
-    def _score_metric(
-        self,
-        question: str,
-        metric: str,
-        keywords: list[str],
-    ) -> tuple[int, list[str]]:
-        score = 0
-        matched_terms = []
-
-        for keyword in keywords:
-            keyword_normalized = self._normalize(keyword)
-
-            if keyword_normalized in question:
-                matched_terms.append(keyword)
-
-                # Longer phrases are more meaningful.
-                word_count = len(keyword_normalized.split())
-
-                if word_count >= 3:
-                    score += 4
-                elif word_count == 2:
-                    score += 3
-                else:
-                    score += 2
-
-                # Important phrases receive additional weight.
-                score += self.PHRASE_PRIORITY.get(
-                    keyword_normalized,
-                    0,
-                )
-
-        return score, matched_terms
-
-    def _is_ranking_question(
-        self,
-        question: str,
-    ) -> bool:
-        for keyword in self.RANKING_KEYWORDS:
-            if keyword in question:
-                return True
-
-        return False
-
-    def _detect_ranking_entity(
-        self,
-        question: str,
-    ) -> str | None:
-        """
-        Detect the main business entity in a ranking question.
-
-        This is intentionally simple and deterministic.
-        It does not depend on database table names.
-        """
-
-        # Check longer/more specific forms first.
-        entities = sorted(
-            self.RANKING_DEFAULTS.keys(),
-            key=len,
-            reverse=True,
-        )
-
-        for entity in entities:
-            if entity in question:
-                return entity
-
-        return None
-
-    def _get_ranking_default_metric(
-        self,
-        question: str,
-    ) -> str | None:
-        """
-        Determine a default ranking metric when the user
-        asks for TOP/BOTTOM but does not specify a metric.
-        """
-
-        if not self._is_ranking_question(question):
-            return None
-
-        entity = self._detect_ranking_entity(question)
-
-        if not entity:
-            return None
-
-        return self.RANKING_DEFAULTS.get(entity)
+    # =============================================================
+    # MAIN
+    # =============================================================
 
     def understand(
         self,
         question: str,
-        schema: dict | None = None,
     ) -> dict:
-        original_question = question
-        normalized_question = self._normalize(question)
+
+        original = question or ""
+
+        normalized = re.sub(
+            r"\s+",
+            " ",
+            original.lower(),
+        ).strip()
 
         candidates = []
 
-        for metric, keywords in self.METRIC_KEYWORDS.items():
-            score, matched_terms = self._score_metric(
-                normalized_question,
-                metric,
-                keywords,
-            )
+        for metric, terms in self.METRIC_KEYWORDS.items():
 
-            if score > 0:
+            matched_terms = []
+
+            score = 0
+
+            for term in terms:
+
+                if re.search(
+                    rf"\b{re.escape(term)}\b",
+                    normalized,
+                ):
+
+                    matched_terms.append(
+                        term
+                    )
+
+                    if " " in term:
+                        score += 6
+                    else:
+                        score += 3
+
+            if matched_terms:
+
                 candidates.append(
                     {
                         "metric": metric,
@@ -294,71 +232,83 @@ class MetricEngine:
         )
 
         # ---------------------------------------------------------
-        # Explicit metric found
+        # Strong sales/revenue phrase
         # ---------------------------------------------------------
-        if candidates:
-            best = candidates[0]
 
-            if best["score"] >= 10:
-                confidence = 0.99
-            elif best["score"] >= 7:
-                confidence = 0.95
-            elif best["score"] >= 5:
-                confidence = 0.90
-            elif best["score"] >= 3:
-                confidence = 0.80
-            else:
-                confidence = 0.70
+        if re.search(
+            r"\b(total|overall|combined)\s+"
+            r"(sales|revenue|turnover|income)\b",
+            normalized,
+        ):
+
+            candidates.insert(
+                0,
+                {
+                    "metric": "revenue",
+                    "score": 100,
+                    "matched_terms": [
+                        "total sales/revenue"
+                    ],
+                },
+            )
+
+        if candidates:
+
+            best = candidates[0]
 
             return {
                 "metric": best["metric"],
-                "confidence": confidence,
-                "matched_terms": best["matched_terms"],
+                "confidence": min(
+                    0.99,
+                    0.70
+                    + best["score"] / 100,
+                ),
+                "matched_terms": best[
+                    "matched_terms"
+                ],
                 "candidate_metrics": candidates,
-                "question": original_question,
+                "question": original,
             }
 
         # ---------------------------------------------------------
-        # No explicit metric.
-        #
-        # If this is a ranking question, use a deterministic
-        # business default based on the entity.
+        # Ranking default
         # ---------------------------------------------------------
-        ranking_metric = self._get_ranking_default_metric(
-            normalized_question
-        )
 
-        if ranking_metric:
+        for entity, metric in self.RANKING_DEFAULTS.items():
+
+            if not re.search(
+                rf"\b{re.escape(entity)}s?\b",
+                normalized,
+            ):
+                continue
+
+            if not re.search(
+                r"\b(top|bottom|highest|lowest|best|worst)\b",
+                normalized,
+            ):
+                continue
+
             return {
-                "metric": ranking_metric,
+                "metric": metric,
                 "confidence": 0.75,
                 "matched_terms": [],
                 "candidate_metrics": [
                     {
-                        "metric": ranking_metric,
-                        "score": 0,
-                        "matched_terms": [],
+                        "metric": metric,
                         "default": True,
                     }
                 ],
-                "question": original_question,
-                "default_metric": True,
-                "default_reason": (
-                    "No explicit ranking metric was specified, "
-                    "so a business-default metric was selected."
-                ),
+                "question": original,
             }
 
-        # ---------------------------------------------------------
-        # No metric could be determined.
-        # ---------------------------------------------------------
         return {
             "metric": None,
             "confidence": 0.0,
             "matched_terms": [],
             "candidate_metrics": [],
-            "question": original_question,
+            "question": original,
         }
 
 
 metric_engine = MetricEngine()
+

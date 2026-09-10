@@ -1,12 +1,26 @@
+
 import re
 
 
 class IntentEngine:
     """
-    Custom rule-based intent understanding engine.
+    Determines what operation the user wants.
 
-    This is the first version of our own AI reasoning system.
-    It does not use OpenAI, Ollama, LangChain, or another LLM.
+    Examples:
+
+        total sales
+            -> TOTAL
+
+        average salary
+            -> AVERAGE
+
+        top 5 customers
+            -> TOP
+
+        sales in August 2026
+            -> TOTAL
+
+    The final SQL is still generated from the real database schema.
     """
 
     INTENTS = {
@@ -23,279 +37,232 @@ class IntentEngine:
         "UNKNOWN",
     }
 
-    def understand(self, question: str) -> dict:
-        if not question or not question.strip():
+    def understand(
+        self,
+        question: str,
+    ) -> dict:
+
+        original = (
+            question or ""
+        ).strip()
+
+        if not original:
+
             return {
                 "intent": "UNKNOWN",
                 "confidence": 0.0,
                 "matched_terms": [],
+                "question": original,
             }
 
-        original_question = question.strip()
-        q = original_question.lower()
+        q = re.sub(
+            r"\s+",
+            " ",
+            re.sub(
+                r"[^\w\s/-]",
+                " ",
+                original.lower(),
+            ),
+        ).strip()
 
-        # Normalize common punctuation.
-        normalized = re.sub(r"[^\w\s]", " ", q)
-        normalized = re.sub(r"\s+", " ", normalized).strip()
+        rules = [
 
-        # ---------------------------------------------------------
-        # TOTAL
-        # ---------------------------------------------------------
-        total_terms = [
-            "total",
-            "overall",
-            "sum",
-            "combined",
-            "how much",
-            "total amount",
-            "total sales",
-            "overall sales",
-        ]
-
-        matched = self._find_terms(normalized, total_terms)
-
-        if matched:
-            return self._result(
+            (
                 "TOTAL",
-                0.95,
-                matched,
-                original_question,
-            )
+                [
+                    "total",
+                    "overall",
+                    "sum",
+                    "combined",
+                    "how much",
+                    "total amount",
+                    "total sales",
+                    "overall sales",
+                    "what were the sales",
+                    "what was the sales",
+                    "sales in",
+                ],
+                0.96,
+            ),
 
-        # ---------------------------------------------------------
-        # COUNT
-        # ---------------------------------------------------------
-        count_terms = [
-            "how many",
-            "count",
-            "number of",
-            "how much records",
-            "how many records",
-            "number",
-        ]
-
-        matched = self._find_terms(normalized, count_terms)
-
-        if matched:
-            return self._result(
+            (
                 "COUNT",
+                [
+                    "how many",
+                    "count",
+                    "number of",
+                    "how many records",
+                    "number",
+                ],
                 0.95,
-                matched,
-                original_question,
-            )
+            ),
 
-        # ---------------------------------------------------------
-        # AVERAGE
-        # ---------------------------------------------------------
-        average_terms = [
-            "average",
-            "avg",
-            "mean",
-        ]
-
-        matched = self._find_terms(normalized, average_terms)
-
-        if matched:
-            return self._result(
+            (
                 "AVERAGE",
+                [
+                    "average",
+                    "avg",
+                    "mean",
+                ],
                 0.95,
-                matched,
-                original_question,
-            )
+            ),
 
-        # ---------------------------------------------------------
-        # MAXIMUM
-        # ---------------------------------------------------------
-        maximum_terms = [
-            "highest",
-            "maximum",
-            "max",
-            "largest",
-            "greatest",
-            "most",
-        ]
-
-        matched = self._find_terms(normalized, maximum_terms)
-
-        if matched:
-            return self._result(
+            (
                 "MAXIMUM",
+                [
+                    "highest",
+                    "maximum",
+                    "max",
+                    "largest",
+                    "greatest",
+                    "most",
+                ],
                 0.90,
-                matched,
-                original_question,
-            )
+            ),
 
-        # ---------------------------------------------------------
-        # MINIMUM
-        # ---------------------------------------------------------
-        minimum_terms = [
-            "lowest",
-            "minimum",
-            "min",
-            "smallest",
-            "least",
-        ]
-
-        matched = self._find_terms(normalized, minimum_terms)
-
-        if matched:
-            return self._result(
+            (
                 "MINIMUM",
+                [
+                    "lowest",
+                    "minimum",
+                    "min",
+                    "smallest",
+                    "least",
+                ],
                 0.90,
-                matched,
-                original_question,
-            )
+            ),
 
-        # ---------------------------------------------------------
-        # TOP
-        # ---------------------------------------------------------
-        top_terms = [
-            "top",
-            "best",
-            "leading",
-            "highest selling",
-            "most selling",
-            "most sold",
-        ]
-
-        matched = self._find_terms(normalized, top_terms)
-
-        if matched:
-            return self._result(
+            (
                 "TOP",
+                [
+                    "top",
+                    "best",
+                    "leading",
+                    "highest selling",
+                    "most selling",
+                    "most sold",
+                ],
                 0.90,
-                matched,
-                original_question,
-            )
+            ),
 
-        # ---------------------------------------------------------
-        # BOTTOM
-        # ---------------------------------------------------------
-        bottom_terms = [
-            "bottom",
-            "worst",
-            "lowest selling",
-            "least selling",
-            "least sold",
-        ]
-
-        matched = self._find_terms(normalized, bottom_terms)
-
-        if matched:
-            return self._result(
+            (
                 "BOTTOM",
+                [
+                    "bottom",
+                    "worst",
+                    "lowest selling",
+                    "least selling",
+                    "least sold",
+                ],
                 0.90,
-                matched,
-                original_question,
-            )
+            ),
 
-        # ---------------------------------------------------------
-        # GROUP BY
-        # ---------------------------------------------------------
-        group_terms = [
-            "by product",
-            "by customer",
-            "by month",
-            "by year",
-            "by date",
-            "by category",
-            "group by",
-            "grouped by",
-            "breakdown",
-            "break down",
-        ]
-
-        matched = self._find_terms(normalized, group_terms)
-
-        if matched:
-            return self._result(
+            (
                 "GROUP_BY",
+                [
+                    "by product",
+                    "by customer",
+                    "by month",
+                    "by year",
+                    "by date",
+                    "by category",
+                    "group by",
+                    "grouped by",
+                    "breakdown",
+                    "break down",
+                ],
                 0.90,
-                matched,
-                original_question,
-            )
+            ),
 
-        # ---------------------------------------------------------
-        # FILTER
-        # ---------------------------------------------------------
-        filter_terms = [
-            "where",
-            "for customer",
-            "for product",
-            "from customer",
-            "with customer",
-            "with product",
-            "only",
-            "between",
-            "during",
-        ]
-
-        matched = self._find_terms(normalized, filter_terms)
-
-        if matched:
-            return self._result(
+            (
                 "FILTER",
+                [
+                    "where",
+                    "for customer",
+                    "for product",
+                    "with customer",
+                    "with product",
+                    "only",
+                    "between",
+                    "during",
+                    "from ",
+                    "to ",
+                ],
                 0.85,
-                matched,
-                original_question,
-            )
+            ),
 
-        # ---------------------------------------------------------
-        # LIST
-        # ---------------------------------------------------------
-        list_terms = [
-            "show",
-            "list",
-            "display",
-            "give me",
-            "get",
-            "fetch",
-            "view",
+            (
+                "LIST",
+                [
+                    "show",
+                    "list",
+                    "display",
+                    "give me",
+                    "get",
+                    "fetch",
+                    "view",
+                ],
+                0.75,
+            ),
         ]
 
-        matched = self._find_terms(normalized, list_terms)
+        for (
+            intent,
+            terms,
+            confidence,
+        ) in rules:
 
-        if matched:
-            return self._result(
-                "LIST",
-                0.75,
-                matched,
-                original_question,
+            matched = [
+                term
+                for term in terms
+                if term in q
+            ]
+
+            if matched:
+
+                return {
+                    "intent": intent,
+                    "confidence": confidence,
+                    "matched_terms": matched,
+                    "question": original,
+                }
+
+        # ---------------------------------------------------------
+        # Sales/revenue period question
+        # ---------------------------------------------------------
+
+        if (
+            re.search(
+                r"\b("
+                r"sales|sale|revenue|turnover|income"
+                r")\b",
+                q,
             )
+            and
+            re.search(
+                r"\b("
+                r"in|during|for|from|between|last|this"
+                r")\b",
+                q,
+            )
+        ):
 
-        # ---------------------------------------------------------
-        # UNKNOWN
-        # ---------------------------------------------------------
+            return {
+                "intent": "TOTAL",
+                "confidence": 0.80,
+                "matched_terms": [
+                    "sales by period"
+                ],
+                "question": original,
+            }
+
         return {
             "intent": "UNKNOWN",
             "confidence": 0.0,
             "matched_terms": [],
-            "question": original_question,
-        }
-
-    @staticmethod
-    def _find_terms(question: str, terms: list[str]) -> list[str]:
-        matched = []
-
-        for term in terms:
-            if term in question:
-                matched.append(term)
-
-        return matched
-
-    @staticmethod
-    def _result(
-        intent: str,
-        confidence: float,
-        matched_terms: list[str],
-        question: str,
-    ) -> dict:
-        return {
-            "intent": intent,
-            "confidence": confidence,
-            "matched_terms": matched_terms,
-            "question": question,
+            "question": original,
         }
 
 
 intent_engine = IntentEngine()
+
