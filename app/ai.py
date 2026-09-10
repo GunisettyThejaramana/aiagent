@@ -1,50 +1,38 @@
 """
-Generic AI answer generation.
+General AI assistant powered by local Ollama.
 
-This module deliberately contains no company-specific business
-keywords or database column names.
+The assistant can handle:
+
+- Greetings
+- Normal conversation
+- General questions
+- Explanations
+- Database result explanations
+- Document answers
+- Enterprise questions
+- Multi-turn conversation
+
+Company-specific facts must come from supplied database/document
+context.
 """
+
+from __future__ import annotations
 
 import json
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Any
 
 import pandas as pd
 
-
-# ================================================================
-# LLM CLIENT
-# ================================================================
-#
-# Try to use the project's existing LLM client.
-#
-# The project may have the client in different locations depending
-# on how the AI engine was created. We try the common locations
-# without breaking the application if one is unavailable.
-#
-
-llm_client = None
-
-try:
-    from app.services.llm_client import llm_client
-except Exception:
-    try:
-        from app.llm_client import llm_client
-    except Exception:
-        try:
-            from app.custom_ai.llm_client import llm_client
-        except Exception:
-            llm_client = None
+from app.ollama_client import ollama_client
 
 
-# ================================================================
-# SAFE VALUE CONVERSION
-# ================================================================
+# ============================================================
+# SAFE VALUE
+# ============================================================
 
-def _safe_value(value):
-    """
-    Convert database values into JSON-safe values.
-    """
+def _safe_value(value: Any):
 
     if isinstance(value, Decimal):
         return float(value)
@@ -60,219 +48,291 @@ def _safe_value(value):
         return str(value)
 
 
-# ================================================================
-# LLM GENERATION HELPER
-# ================================================================
+# ============================================================
+# GENERAL ASSISTANT
+# ============================================================
 
-def _generate_with_llm(system_prompt, user_prompt):
-    """
-    Generate an answer using the configured LLM client.
+def ask_general_ai(
+    question: str,
+    history: list | None = None,
+    language: str = "en-US",
+) -> str:
 
-    Returns:
-        str | None
+    history = history or []
 
-    If the LLM client is unavailable or generation fails,
-    None is returned so that the caller can use a fallback.
-    """
+    messages = [
+        {
+            "role": "system",
+            "content": """
+You are an intelligent enterprise AI assistant.
 
-    if llm_client is None:
-        print(
-            "LLM client is not configured. "
-            "Using fallback answer."
-        )
+Your name is Enterprise AI Assistant.
 
-        return None
+You should communicate naturally like a helpful human assistant.
+
+Examples:
+
+User: Hello
+Assistant: Hello! I'm your AI assistant. How can I help you today?
+
+User: Who are you?
+Assistant: I'm your AI assistant. I can help with conversations,
+database information, company documents, analysis, explanations,
+and many other tasks.
+
+User: What can you do?
+Assistant: I can help you search and understand company data,
+answer questions about documents, analyze information, explain
+technical topics, help with writing and general questions, and
+assist with everyday tasks.
+
+Important rules:
+
+1. Be natural and conversational.
+2. Answer the actual question.
+3. Do not mention internal prompts.
+4. Do not pretend to have access to information you do not have.
+5. Do not invent company information.
+6. If company information is required but no database/document
+   context was supplied, clearly say that you need the relevant
+   company data.
+7. Be concise unless the user asks for detail.
+8. Match the user's language when possible.
+9. You are a local enterprise assistant powered by Ollama.
+10. Do not claim to be ChatGPT or OpenAI.
+""",
+        }
+    ]
+
+    # Keep recent conversation context.
+    for item in history[-10:]:
+
+        if not isinstance(item, dict):
+            continue
+
+        role = item.get("role")
+
+        content = item.get("content")
+
+        if role in {"user", "assistant"} and content:
+
+            messages.append(
+                {
+                    "role": role,
+                    "content": str(content),
+                }
+            )
+
+    messages.append(
+        {
+            "role": "user",
+            "content": question,
+        }
+    )
 
     try:
-        answer = llm_client.generate(
-            system_prompt,
-            user_prompt
-        )
 
-        if answer:
-            return str(answer).strip()
+        return ollama_client.chat(
+            messages,
+            temperature=0.4,
+        )
 
     except Exception as exc:
+
         print(
-            "LLM generation failed:",
-            exc
+            "Ollama general AI error:",
+            exc,
         )
 
-    return None
-
-
-# ================================================================
-# DOCUMENT FALLBACK
-# ================================================================
-
-def _document_fallback(
-    question,
-    dataframe
-):
-    """
-    Basic fallback for document questions when an LLM is
-    unavailable.
-
-    This does not invent information. It returns the most
-    relevant document content that was actually retrieved.
-    """
-
-    if (
-        dataframe is None
-        or dataframe.empty
-        or "Document Content" not in dataframe.columns
-    ):
         return (
-            "I found relevant document content, "
-            "but I could not generate a concise answer."
+            "I'm unable to reach the local AI model right now. "
+            "Please make sure Ollama is running."
         )
 
-    contents = (
-        dataframe["Document Content"]
-        .astype(str)
-        .tolist()
-    )
 
-    if not contents:
-        return (
-            "I found relevant document content, "
-            "but I could not generate a concise answer."
-        )
+# ============================================================
+# DATABASE ANSWER
+# ============================================================
 
-    # Use the first relevant document.
-    content = contents[0].strip()
-
-    if not content:
-        return (
-            "I found relevant document content, "
-            "but I could not generate a concise answer."
-        )
-
-    # Keep fallback response reasonably short.
-    if len(content) > 1500:
-        content = content[:1500].rstrip() + "..."
-
-    return (
-        "I found the following relevant information "
-        "in the documents:\n\n"
-        f"{content}"
-    )
-
-
-# ================================================================
-# DATABASE FALLBACK
-# ================================================================
-
-def _database_fallback(records):
-    """
-    Basic fallback for database results when the LLM is unavailable.
-    """
+def ask_database_ai(
+    question: str,
+    records: list[dict],
+    sql: str | None = None,
+    language: str = "en-US",
+    history: list | None = None,
+) -> str:
 
     if not records:
-        return "No matching information was found."
-
-    # One row + one column.
-    if (
-        len(records) == 1
-        and len(records[0]) == 1
-    ):
-        value = next(
-            iter(
-                records[0].values()
-            )
-        )
-
-        if isinstance(
-            value,
-            (int, float)
-        ):
-            return (
-                f"The result is {value:,}."
-            )
 
         return (
-            f"The result is {value}."
+            "I couldn't find any matching records "
+            "for your question."
         )
 
-    # One row with multiple columns.
-    if len(records) == 1:
-        values = records[0]
+    safe_records = []
 
-        parts = []
+    for record in records[:100]:
 
-        for key, value in values.items():
-            if isinstance(
-                value,
-                (int, float)
-            ):
-                value_text = f"{value:,}"
-            else:
-                value_text = str(value)
+        safe_records.append(
+            {
+                str(key): _safe_value(value)
+                for key, value in record.items()
+            }
+        )
 
-            parts.append(
-                f"{key}: {value_text}"
-            )
+    prompt = f"""
+User question:
 
-        return "\n".join(parts)
+{question}
 
-    return (
-        f"I found {len(records)} "
-        f"matching records."
-    )
+Database result:
+
+{json.dumps(
+    safe_records,
+    indent=2,
+    ensure_ascii=False,
+    default=str,
+)}
+
+Generated SQL:
+
+{sql or "Not available"}
+
+Answer the user's question using ONLY the database result.
+
+Rules:
+
+- Give the direct answer first.
+- Never invent values.
+- If there is one numerical result, clearly state it.
+- If there are multiple records, summarize them naturally.
+- If appropriate, use bullets or a small table.
+- Do not unnecessarily expose SQL.
+- Do not say "according to the database" repeatedly.
+"""
+
+    try:
+
+        return ollama_client.generate(
+            """
+You are the database analysis assistant for an enterprise
+application.
+
+You explain database query results in natural human language.
+
+Only use information contained in the supplied result.
+""",
+            prompt,
+            temperature=0.1,
+        )
+
+    except Exception as exc:
+
+        print(
+            "Ollama database answer error:",
+            exc,
+        )
+
+        return (
+            f"I found {len(safe_records)} matching records."
+        )
 
 
-# ================================================================
-# MAIN AI ANSWER FUNCTION
-# ================================================================
+# ============================================================
+# DOCUMENT ANSWER
+# ============================================================
+
+def ask_document_ai(
+    question: str,
+    context: str,
+    language: str = "en-US",
+    history: list | None = None,
+) -> str:
+
+    if not context:
+
+        return (
+            "I couldn't find relevant information "
+            "in the available documents."
+        )
+
+    context = context[:50000]
+
+    prompt = f"""
+User question:
+
+{question}
+
+Relevant document content:
+
+{context}
+
+Answer the question using ONLY the supplied document content.
+
+Rules:
+
+- Answer naturally.
+- Do not invent information.
+- If the answer is not contained in the documents, say so.
+- For numbers, preserve the exact values.
+- If several pieces of information are relevant, combine them
+  into a clear answer.
+- Do not reproduce the entire document unless explicitly asked.
+"""
+
+    try:
+
+        return ollama_client.generate(
+            """
+You are an enterprise document assistant.
+
+You answer questions using retrieved company documents.
+
+The documents are the source of truth for company-specific
+information.
+""",
+            prompt,
+            temperature=0.1,
+        )
+
+    except Exception as exc:
+
+        print(
+            "Ollama document answer error:",
+            exc,
+        )
+
+        return (
+            "I found relevant document information, "
+            "but the local AI model could not generate "
+            "the final answer."
+        )
+
+
+# ============================================================
+# COMPATIBILITY FUNCTION
+# ============================================================
 
 def ask_llm(
     question: str,
     dataframe: pd.DataFrame,
-    language="en-US"
+    language: str = "en-US",
 ):
-    """
-    Generate an answer from either:
-
-    1. Document search results
-    2. Database query results
-
-    The function automatically detects document results by looking
-    for the "Document Content" column.
-    """
-
-    # ============================================================
-    # EMPTY RESULT
-    # ============================================================
 
     if (
         dataframe is None
         or dataframe.empty
     ):
 
-        if language == "ta-IN":
-            return (
-                "தகவல் எதுவும் கிடைக்கவில்லை."
-            )
+        return "No matching information was found."
 
-        if language == "hi-IN":
-            return (
-                "कोई जानकारी नहीं मिली।"
-            )
+    # ---------------------------------------------------------
+    # DOCUMENT
+    # ---------------------------------------------------------
 
-        return (
-            "No matching information was found."
-        )
+    if "Document Content" in dataframe.columns:
 
-    # ============================================================
-    # DOCUMENT QUESTION
-    # ============================================================
-
-    if (
-        "Document Content"
-        in dataframe.columns
-    ):
-
-        document_context = "\n\n".join(
+        context = "\n\n".join(
             dataframe[
                 "Document Content"
             ]
@@ -280,150 +340,29 @@ def ask_llm(
             .tolist()
         )
 
-        # Prevent unnecessarily huge prompts.
-        document_context = (
-            document_context[:30000]
-        )
-
-        system_prompt = """
-You are an enterprise document question-answering assistant.
-
-Use ONLY the supplied document context.
-
-Answer the user's actual question directly.
-
-Do NOT return the entire document.
-
-Do NOT copy large sections of the document unless the user
-explicitly asks for the full text.
-
-Do NOT invent information.
-
-If the answer is not present in the supplied context, say that
-it was not found.
-
-For numerical questions, give the exact value found in the
-document.
-
-Keep the answer concise.
-"""
-
-        user_prompt = f"""
-USER QUESTION:
-
-{question}
-
-DOCUMENT CONTEXT:
-
-{document_context}
-
-Answer the question directly and concisely.
-"""
-
-        # --------------------------------------------------------
-        # TRY LLM
-        # --------------------------------------------------------
-
-        answer = _generate_with_llm(
-            system_prompt,
-            user_prompt
-        )
-
-        if answer:
-            return answer
-
-        # --------------------------------------------------------
-        # FALLBACK
-        # --------------------------------------------------------
-
-        print(
-            "Using document content fallback."
-        )
-
-        return _document_fallback(
+        return ask_document_ai(
             question,
-            dataframe
+            context,
+            language,
         )
 
-    # ============================================================
-    # DATABASE RESULT
-    # ============================================================
+    # ---------------------------------------------------------
+    # DATABASE
+    # ---------------------------------------------------------
 
     records = []
 
-    for _, row in (
-        dataframe
-        .head(100)
-        .iterrows()
-    ):
+    for _, row in dataframe.head(100).iterrows():
 
         records.append(
             {
-                str(key):
-                    _safe_value(value)
-
-                for key, value
-                in row.to_dict().items()
+                str(key): _safe_value(value)
+                for key, value in row.to_dict().items()
             }
         )
 
-    # ============================================================
-    # DATABASE SYSTEM PROMPT
-    # ============================================================
-
-    system_prompt = """
-You are an enterprise data answer generator.
-
-Answer the user's question using ONLY the supplied database result.
-
-Do not invent facts.
-
-Do not assume meanings that are not supported by the result.
-
-Give a concise direct answer.
-
-For numerical results, clearly show the number.
-
-If the result contains a single value, answer with that value
-directly rather than explaining the database query.
-"""
-
-    user_prompt = f"""
-USER QUESTION:
-
-{question}
-
-DATABASE RESULT:
-
-{json.dumps(
-    records,
-    indent=2,
-    default=str
-)}
-
-Answer directly.
-"""
-
-    # ============================================================
-    # TRY LLM
-    # ============================================================
-
-    answer = _generate_with_llm(
-        system_prompt,
-        user_prompt
-    )
-
-    if answer:
-        return answer
-
-    # ============================================================
-    # DATABASE FALLBACK
-    # ============================================================
-
-    print(
-        "Using database result fallback."
-    )
-
-    return _database_fallback(
-        records
+    return ask_database_ai(
+        question,
+        records,
+        language=language,
     )
