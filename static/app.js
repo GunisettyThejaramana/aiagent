@@ -422,6 +422,198 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
 
+    /* ================================================================
+       DOCUMENT LOADING & RENDERING
+    ================================================================ */
+
+    function formatFileSize(bytes) {
+        if (!bytes || bytes === 0) return "0 B";
+        const units = ["B", "KB", "MB", "GB"];
+        const i = Math.floor(Math.log(bytes) / Math.log(1024));
+        return `${(bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+    }
+
+    function getFileIconClass(suffix) {
+        const ext = (suffix || "").toLowerCase().replace(".", "");
+        const map = {
+            pdf: "pdf",
+            doc: "docx",
+            docx: "docx",
+            xls: "xlsx",
+            xlsx: "xlsx",
+            csv: "csv",
+            ppt: "pptx",
+            pptx: "pptx",
+            txt: "txt",
+            md: "md",
+            json: "json",
+            xml: "xml",
+            html: "html",
+            htm: "html"
+        };
+        return map[ext] || "default";
+    }
+
+    function createDocumentItem(file) {
+        const iconClass = getFileIconClass(file.suffix);
+        const size = formatFileSize(file.size);
+        const chunks = file.document_count
+            ? ` · ${file.document_count} chunk${file.document_count > 1 ? "s" : ""}`
+            : "";
+
+        return `
+            <div class="document-item" title="${escapeHtml(file.path || "")}">
+                <div class="document-icon ${iconClass}">
+                    <i class="bi bi-file-earmark"></i>
+                </div>
+                <div class="document-info">
+                    <strong>${escapeHtml(file.name || "Unnamed file")}</strong>
+                    <small>${escapeHtml((file.suffix || "").toUpperCase())} · ${size}${chunks}</small>
+                </div>
+            </div>
+        `;
+    }
+
+    function createLibraryCard(file) {
+        const size = formatFileSize(file.size);
+        return `
+            <div class="library-card" title="${escapeHtml(file.path || "")}">
+                <div>
+                    <strong>${escapeHtml(file.name || "Unnamed file")}</strong>
+                    <small>${escapeHtml((file.suffix || "").toUpperCase())} · ${size}</small>
+                </div>
+            </div>
+        `;
+    }
+
+    async function loadDocuments() {
+        const recentDocuments = document.getElementById("recentDocuments");
+        const documentLibrary = document.getElementById("documentLibrary");
+        const documentCountEl = document.getElementById("documentCount");
+
+        // Show loading state
+        if (documentsCountText) {
+            documentsCountText.textContent = "Loading documents...";
+        }
+        if (documentsList) {
+            documentsList.innerHTML = `<div class="empty-state"><span>Scanning files...</span></div>`;
+        }
+
+        try {
+            const response = await fetch("/documents", {
+                method: "GET",
+                headers: getHeaders()
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || data.detail || "Unable to load documents");
+            }
+
+            const files = Array.isArray(data.files) ? data.files : [];
+            const fileCount = data.file_count ?? files.length;
+            const docCount = data.document_count ?? 0;
+
+            // Update counts
+            if (documentsCountText) {
+                documentsCountText.textContent =
+                    fileCount === 0
+                        ? "No documents found"
+                        : `${fileCount} file${fileCount !== 1 ? "s" : ""} · ${docCount} chunk${docCount !== 1 ? "s" : ""}`;
+            }
+
+            if (documentCountEl) {
+                documentCountEl.textContent = fileCount;
+            }
+
+            // ---- Dashboard card: #documentsList ----
+            if (documentsList) {
+                if (files.length === 0) {
+                    documentsList.innerHTML = `
+                        <div class="empty-state">
+                            <i class="bi bi-file-earmark"></i>
+                            <strong>No documents available</strong>
+                            <span>Add a document source or place files in the scanned folders.</span>
+                        </div>
+                    `;
+                } else {
+                    documentsList.innerHTML = files
+                        .slice(0, 12)
+                        .map(createDocumentItem)
+                        .join("");
+                }
+            }
+
+            // ---- Recent documents panel ----
+            if (recentDocuments) {
+                if (files.length === 0) {
+                    recentDocuments.classList.add("empty-state");
+                    recentDocuments.innerHTML = `
+                        <i class="bi bi-file-earmark"></i>
+                        <strong>No documents available</strong>
+                        <span>Add a document source to begin searching your files.</span>
+                    `;
+                } else {
+                    recentDocuments.classList.remove("empty-state");
+                    recentDocuments.innerHTML = files
+                        .slice(0, 5)
+                        .map(createDocumentItem)
+                        .join("");
+                }
+            }
+
+            // ---- Full Documents view: #documentLibrary ----
+            if (documentLibrary) {
+                if (files.length === 0) {
+                    documentLibrary.classList.add("empty-state");
+                    documentLibrary.innerHTML = `
+                        <i class="bi bi-folder2-open"></i>
+                        <strong>No documents available</strong>
+                        <span>
+                            Add a document source to configure a folder,
+                            Excel file, CSV, PDF, Word file or archive for the AI employee.
+                        </span>
+                    `;
+                } else {
+                    documentLibrary.classList.remove("empty-state");
+                    documentLibrary.innerHTML = files.map(createLibraryCard).join("");
+                }
+            }
+
+            console.log(`Documents loaded: ${fileCount} files, ${docCount} chunks`);
+            if (data.scan_paths) {
+                console.log("Scan paths:", data.scan_paths);
+            }
+
+        } catch (error) {
+            console.error("Document loading error:", error);
+
+            if (documentsCountText) {
+                documentsCountText.textContent = "Failed to load documents";
+            }
+            if (documentsList) {
+                documentsList.innerHTML = `
+                    <div class="empty-state">
+                        <strong>Error loading documents</strong>
+                        <span>${escapeHtml(error.message)}</span>
+                    </div>
+                `;
+            }
+            if (documentCountEl) {
+                documentCountEl.textContent = "0";
+            }
+        }
+    }
+
+    /* Wire the Refresh button */
+    if (refreshDocumentsBtn) {
+        refreshDocumentsBtn.addEventListener("click", () => {
+            loadDocuments();
+        });
+    }
+
+
     async function askQuestion(
         questionOverride = null
     ) {
@@ -1515,6 +1707,11 @@ ${error.message}`
         ) {
 
             renderManagedDatabases();
+        }
+
+        // Refresh documents when opening the Documents view
+        if (name === "documents") {
+            loadDocuments();
         }
     }
 
@@ -2853,6 +3050,7 @@ ${error.message}`
      */
 
     loadDatabases();
+    loadDocuments();          // ← Added: load documents on startup
 
 
     /*
