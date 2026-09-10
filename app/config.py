@@ -15,15 +15,11 @@ class Settings(BaseSettings):
     DB_PORT: int
     DB_NAME: str
 
-    OPENAI_API_KEY: str
+    OPENAI_API_KEY: str | None = None
 
 
 
-    LLM_MODEL: str = "gpt-4o-mini"
-
-    LLM_TEMPERATURE: float = 0
-
-    LLM_MAX_TOKENS: int = 2000
+    
 
     # Used to encrypt passwords of additional databases.
     DB_ENCRYPTION_KEY: str = ""

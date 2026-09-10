@@ -1,4 +1,4 @@
-from openai import OpenAI
+
 
 from app.config import settings
 
@@ -6,9 +6,7 @@ from app.config import settings
 class LLMClient:
 
     def __init__(self):
-        self.client = OpenAI(
-            api_key=settings.OPENAI_API_KEY
-        )
+        
 
         self.model = settings.LLM_MODEL
 

@@ -1,4 +1,55 @@
+"""
+Generic AI answer generation.
+
+This module deliberately contains no company-specific business
+keywords or database column names.
+"""
+
+import json
+from datetime import date, datetime
+from decimal import Decimal
+
 import pandas as pd
+
+from app.llm.client import llm_client
+
+
+def _safe_value(
+    value
+):
+
+    if isinstance(
+        value,
+        Decimal
+    ):
+
+        return float(
+            value
+        )
+
+    if isinstance(
+        value,
+        (
+            date,
+            datetime
+        )
+    ):
+
+        return value.isoformat()
+
+    try:
+
+        json.dumps(
+            value
+        )
+
+        return value
+
+    except Exception:
+
+        return str(
+            value
+        )
 
 
 def ask_llm(
@@ -6,244 +57,212 @@ def ask_llm(
     dataframe: pd.DataFrame,
     language="en-US"
 ):
-    question = question.lower().strip()
 
-   
-    if dataframe.empty:
+    # ================================================================
+    # EMPTY RESULT
+    # ================================================================
 
-        if language == "ta-IN":
-            return "தரவுத்தளத்தில் தகவல் இல்லை."
-
-        elif language == "hi-IN":
-            return "डेटाबेस में कोई डेटा नहीं मिला।"
-
-        return "No data found in database."
-
-    
-    if "Document Content" in dataframe.columns:
-
-        document_text = "\n".join(
-            dataframe["Document Content"].astype(str).tolist()
-        )
-
-        question_words = question.split()
-
-        if any(
-            word in document_text.lower()
-            for word in question_words
-        ):
-            return document_text[:3000]
-
-        return (
-            "I searched the local documents, "
-            "but couldn't find relevant information."
-        )
-
-    
     if (
-        "total sales" in question
-        or "sales amount" in question
-        or "overall sales" in question
+        dataframe is None
+        or dataframe.empty
     ):
 
-        total = dataframe.iloc[0, 0]
-
-        if pd.isna(total):
-            total = 0
-
-        total = float(total)
-
         if language == "ta-IN":
-            return f"மொத்த விற்பனை ₹{total:,.2f}"
 
-        elif language == "hi-IN":
-            return f"कुल बिक्री ₹{total:,.2f}"
-
-        return f"Your total sales is ₹{total:,.2f}"
-
-   
-    elif (
-        "total revenue" in question
-        or "overall revenue" in question
-    ):
-
-        revenue = dataframe.iloc[0, 0]
-
-        if pd.isna(revenue):
-            revenue = 0
-
-        revenue = float(revenue)
-
-        if language == "ta-IN":
-            return f"மொத்த வருவாய் ₹{revenue:,.2f}"
-
-        elif language == "hi-IN":
-            return f"कुल राजस्व ₹{revenue:,.2f}"
-
-        return f"Your total revenue is ₹{revenue:,.2f}"
-
-    
-    elif (
-        "top customer" in question
-        or "top customers" in question
-        or "best customer" in question
-    ):
-
-        customer = dataframe.iloc[0]["customer_name"]
-
-        if "revenue" in dataframe.columns:
-            amount = float(dataframe.iloc[0]["revenue"])
-        else:
-            amount = float(dataframe.iloc[0, 1])
-
-        if language == "ta-IN":
             return (
-                f"முக்கிய வாடிக்கையாளர் "
-                f"{customer} (₹{amount:,.2f})"
+                "தகவல் எதுவும் கிடைக்கவில்லை."
             )
 
-        elif language == "hi-IN":
+        if language == "hi-IN":
+
             return (
-                f"सबसे बड़ा ग्राहक "
-                f"{customer} (₹{amount:,.2f})"
+                "कोई जानकारी नहीं मिली।"
             )
 
         return (
-            f"Your top customer is "
-            f"{customer} with revenue of ₹{amount:,.2f}"
+            "No matching information was found."
         )
 
-    
-    elif (
-        "top product" in question
-        or "best selling product" in question
-        or "which product sold the most" in question
-        or "highest selling product" in question
-        or "most sold product" in question
+    # ================================================================
+    # DOCUMENT QUESTION
+    # ================================================================
+
+    if (
+        "Document Content"
+        in dataframe.columns
     ):
 
-        product = dataframe.iloc[0]["product_name"]
+        document_context = "\n\n".join(
+            dataframe[
+                "Document Content"
+            ]
+            .astype(str)
+            .tolist()
+        )
 
-        if "total_quantity" in dataframe.columns:
-            qty = int(dataframe.iloc[0]["total_quantity"])
+        # Prevent unnecessarily huge prompts.
+        document_context = (
+            document_context[:30000]
+        )
 
-        elif "quantity" in dataframe.columns:
-            qty = int(dataframe.iloc[0]["quantity"])
+        system_prompt = """
+You are an enterprise document question-answering assistant.
 
-        else:
-            qty = 0
+Use ONLY the supplied document context.
 
-        if language == "ta-IN":
-            return (
-                f"அதிகம் விற்கப்பட்ட பொருள் "
-                f"{product} ({qty})"
+Answer the user's actual question directly.
+
+Do NOT return the entire document.
+
+Do NOT copy large sections of the document unless the user explicitly
+asks for the full text.
+
+Do NOT invent information.
+
+If the answer is not present in the supplied context, say that it
+was not found.
+"""
+
+        user_prompt = f"""
+USER QUESTION:
+
+{question}
+
+DOCUMENT CONTEXT:
+
+{document_context}
+
+Answer the question directly and concisely.
+"""
+
+        try:
+
+            answer = (
+                llm_client.generate(
+                    system_prompt,
+                    user_prompt
+                )
             )
 
-        elif language == "hi-IN":
-            return (
-                f"सबसे अधिक बिकने वाला उत्पाद "
-                f"{product} ({qty})"
+            if answer:
+
+                return answer.strip()
+
+        except Exception as exc:
+
+            print(
+                "Document answer generation failed:",
+                exc
             )
 
         return (
-            f"The best-selling product is "
-            f"{product} with quantity {qty}"
+            "I found relevant document content, "
+            "but I could not generate a concise answer."
         )
 
-    
-    elif (
-        "employee count" in question
-        or "total employees" in question
-        or ("employee" in question and "count" in question)
+    # ================================================================
+    # DATABASE RESULT
+    # ================================================================
+
+    records = []
+
+    for _, row in (
+        dataframe.head(100)
+        .iterrows()
     ):
 
-        if "total_employees" in dataframe.columns:
-            total = int(dataframe.iloc[0]["total_employees"])
-        else:
-            total = len(dataframe)
+        records.append(
+            {
+                str(key):
+                    _safe_value(value)
 
-        if language == "ta-IN":
-            return f"மொத்த பணியாளர்கள் {total}"
+                for (
+                    key,
+                    value
+                )
+                in row.to_dict().items()
+            }
+        )
 
-        elif language == "hi-IN":
-            return f"कुल कर्मचारी {total}"
+    system_prompt = """
+You are an enterprise data answer generator.
 
-        return f"Total employees: {total}"
+Answer the user's question using ONLY the supplied database result.
 
-    
-    elif "salary" in question:
+Do not invent facts.
 
-        count = len(dataframe)
+Do not assume meanings that are not supported by the result.
 
-        if language == "ta-IN":
-            return f"{count} பணியாளர்களின் சம்பள விவரங்கள் கிடைத்தன"
+Give a concise direct answer.
+"""
 
-        elif language == "hi-IN":
-            return f"{count} कर्मचारियों का वेतन विवरण मिला"
+    user_prompt = f"""
+USER QUESTION:
 
-        return f"Found salary information for {count} employees."
+{question}
 
-    
-    elif "profit" in question:
+DATABASE RESULT:
 
-        value = dataframe.iloc[0, 0]
+{json.dumps(
+    records,
+    indent=2,
+    default=str
+)}
 
-        if pd.isna(value):
-            value = 0
+Answer directly.
+"""
 
-        value = float(value)
+    try:
 
-        if language == "ta-IN":
-            return f"லாபம் ₹{value:,.2f}"
+        answer = (
+            llm_client.generate(
+                system_prompt,
+                user_prompt
+            )
+        )
 
-        elif language == "hi-IN":
-            return f"लाभ ₹{value:,.2f}"
+        if answer:
 
-        return f"Profit is ₹{value:,.2f}"
+            return answer.strip()
 
-    
-    elif "today" in question:
+    except Exception as exc:
 
-        count = len(dataframe)
+        print(
+            "Database answer generation failed:",
+            exc
+        )
 
-        if language == "ta-IN":
-            return f"இன்று {count} விற்பனை பதிவுகள் உள்ளன"
+    # ================================================================
+    # GENERIC FALLBACK
+    # ================================================================
 
-        elif language == "hi-IN":
-            return f"आज {count} बिक्री रिकॉर्ड मिले"
-
-        return f"Today you have {count} sales records."
-
-    
-    elif "employee" in question:
-
-        return f"Found {len(dataframe)} employee records."
-
-    
-    elif "sales" in question:
-
-        return f"Found {len(dataframe)} sales records."
-
-    
-    elif "revenue" in question:
-
-        return f"Found {len(dataframe)} revenue records."
-
-    
-    elif (
-        "operation" in question
-        or "task" in question
+    if (
+        len(records) == 1
+        and len(records[0]) == 1
     ):
 
-        return f"Found {len(dataframe)} operation records."
+        value = next(
+            iter(
+                records[0].values()
+            )
+        )
 
-    
-    rows = len(dataframe)
+        if isinstance(
+            value,
+            (int, float)
+        ):
 
-    if language == "ta-IN":
-        return f"{rows} பதிவுகள் கிடைத்தன."
+            return (
+                f"The result is "
+                f"{value:,}."
+            )
 
-    elif language == "hi-IN":
-        return f"{rows} रिकॉर्ड मिले।"
+        return (
+            f"The result is "
+            f"{value}."
+        )
 
-    return f"I found {rows} records based on your query."
+    return (
+        f"I found {len(records)} "
+        f"matching records."
+    )
