@@ -11,7 +11,7 @@ from decimal import Decimal
 
 import pandas as pd
 
-from app.llm.client import llm_client
+
 
 
 def _safe_value(
