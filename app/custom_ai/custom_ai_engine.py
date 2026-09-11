@@ -1,8 +1,32 @@
-"""Fast local database AI engine.
-
-Design goal: one small Ollama call at most for a database question.
-Schema selection and result formatting are handled locally.
 """
+Fast local database AI engine.
+
+Architecture:
+
+    Question
+        ↓
+    MetricEngine
+        ↓
+    IntentEngine
+        ↓
+    EntityEngine
+        ↓
+    ReasoningEngine
+        ↓
+    QueryBuilder
+        ↓
+    PostgreSQL
+
+Only when the deterministic pipeline cannot build a query:
+        ↓
+    Small local Ollama SQL fallback
+
+Important:
+    Ollama is NOT used for database routing.
+    Ollama is NOT used for simple database answers.
+    Deterministic SQL generation is preferred.
+"""
+
 from __future__ import annotations
 
 import json
@@ -13,171 +37,523 @@ from decimal import Decimal
 
 from sqlalchemy import text
 
-from app.ollama_client import ollama_client
 from app.config import settings
-from app.custom_ai.database_knowledge_cache import database_knowledge_cache
+from app.ollama_client import ollama_client
+
+from app.custom_ai.database_knowledge_cache import (
+    database_knowledge_cache,
+)
+
+from app.custom_ai.metric_engine import (
+    MetricEngine,
+)
+
+from app.custom_ai.intent_engine import (
+    IntentEngine,
+)
+
+from app.custom_ai.entity_engine import (
+    EntityEngine,
+)
+
+from app.custom_ai.reasoning_engine import (
+    ReasoningEngine,
+)
+
+from app.custom_ai.query_builder import (
+    QueryBuilder,
+)
+
+
+# ================================================================
+# SQL SAFETY
+# ================================================================
 
 FORBIDDEN_SQL = {
-    "insert", "update", "delete", "drop", "alter", "truncate",
-    "create", "grant", "revoke", "merge", "replace",
+    "insert",
+    "update",
+    "delete",
+    "drop",
+    "alter",
+    "truncate",
+    "create",
+    "grant",
+    "revoke",
+    "merge",
+    "replace",
 }
 
 
 def validate_sql(sql: str) -> str:
+    """
+    Validate generated SQL.
+
+    Only SELECT/WITH statements are permitted.
+    Multiple statements are rejected.
+    """
+
     if not sql:
-        raise ValueError("The AI did not generate SQL.")
+        raise ValueError(
+            "The AI did not generate SQL."
+        )
+
     sql = str(sql).strip()
-    sql = re.sub(r"^```(?:sql)?\s*", "", sql, flags=re.I)
-    sql = re.sub(r"\s*```$", "", sql, flags=re.I).strip()
+
+    # Remove markdown fences.
+    sql = re.sub(
+        r"^```(?:sql)?\s*",
+        "",
+        sql,
+        flags=re.IGNORECASE,
+    )
+
+    sql = re.sub(
+        r"\s*```$",
+        "",
+        sql,
+        flags=re.IGNORECASE,
+    )
+
     sql = sql.rstrip(";").strip()
+
+    # No multiple statements.
     if ";" in sql:
-        raise ValueError("Multiple SQL statements are not allowed.")
-    if not re.match(r"^(select|with)\b", sql, flags=re.I):
-        raise ValueError("Only SELECT/WITH queries are allowed.")
+        raise ValueError(
+            "Multiple SQL statements are not allowed."
+        )
+
+    # Only SELECT / WITH.
+    if not re.match(
+        r"^(select|with)\b",
+        sql,
+        flags=re.IGNORECASE,
+    ):
+        raise ValueError(
+            "Only SELECT/WITH queries are allowed."
+        )
+
     lowered = sql.lower()
+
     for keyword in FORBIDDEN_SQL:
-        if re.search(rf"\b{re.escape(keyword)}\b", lowered):
-            raise ValueError(f"Unsafe SQL keyword detected: {keyword}")
+
+        if re.search(
+            rf"\b{re.escape(keyword)}\b",
+            lowered,
+        ):
+            raise ValueError(
+                f"Unsafe SQL keyword detected: {keyword}"
+            )
+
     return sql
 
 
+# ================================================================
+# SAFE VALUE
+# ================================================================
+
 def safe_value(value):
-    if isinstance(value, Decimal):
+
+    if isinstance(
+        value,
+        Decimal,
+    ):
         return float(value)
-    if isinstance(value, (date, datetime)):
+
+    if isinstance(
+        value,
+        (date, datetime),
+    ):
         return value.isoformat()
+
     try:
         json.dumps(value)
         return value
+
     except Exception:
         return str(value)
 
 
-class CustomAIEngine:
-    SQL_MODEL = getattr(settings, "OLLAMA_SQL_MODEL", "qwen3:4b")
-    SQL_CONTEXT = getattr(settings, "OLLAMA_SQL_CONTEXT", 2048)
-    SQL_TIMEOUT = getattr(settings, "OLLAMA_SQL_TIMEOUT", 30)
+# ================================================================
+# DATABASE AI ENGINE
+# ================================================================
 
-    def get_schema(self, engine, database_id=None):
-        key = database_id if database_id is not None else f"engine:{id(engine)}"
-        return database_knowledge_cache.get_or_build(key, engine)
+class CustomAIEngine:
+
+    # ------------------------------------------------------------
+    # Ollama fallback settings
+    # ------------------------------------------------------------
+
+    SQL_MODEL = getattr(
+        settings,
+        "OLLAMA_SQL_MODEL",
+        getattr(
+            settings,
+            "OLLAMA_MODEL",
+            "qwen3:4b",
+        ),
+    )
+
+    SQL_CONTEXT = getattr(
+        settings,
+        "OLLAMA_SQL_CONTEXT",
+        2048,
+    )
+
+    SQL_TIMEOUT = getattr(
+        settings,
+        "OLLAMA_SQL_TIMEOUT",
+        30,
+    )
+
+    # ------------------------------------------------------------
+    # Constructor
+    # ------------------------------------------------------------
+
+    def __init__(self):
+
+        self.metric_engine = MetricEngine()
+
+        self.intent_engine = IntentEngine()
+
+        self.entity_engine = EntityEngine()
+
+        self.reasoning_engine = ReasoningEngine()
+
+        self.query_builder = QueryBuilder()
+
+    # ============================================================
+    # DATABASE SCHEMA
+    # ============================================================
+
+    def get_schema(
+        self,
+        engine,
+        database_id=None,
+    ):
+        """
+        Read schema from the local database knowledge cache.
+        """
+
+        key = (
+            database_id
+            if database_id is not None
+            else f"engine:{id(engine)}"
+        )
+
+        return database_knowledge_cache.get_or_build(
+            key,
+            engine,
+        )
+
+    # ============================================================
+    # SCHEMA ADAPTER
+    # ============================================================
 
     @staticmethod
-    def _tokens(value: str) -> set[str]:
+    def _convert_schema_for_engines(
+        knowledge: dict,
+    ) -> dict:
+        """
+        DatabaseKnowledgeCache uses:
+
+            {
+                "tables": {
+                    "table_name": {
+                        "table_name": "...",
+                        "columns": [...]
+                    }
+                }
+            }
+
+        ReasoningEngine / QueryBuilder use:
+
+            {
+                "tables": [
+                    {
+                        "table_name": "...",
+                        "columns": [...]
+                    }
+                ]
+            }
+
+        This adapter keeps both systems compatible.
+        """
+
+        if not isinstance(
+            knowledge,
+            dict,
+        ):
+            return {
+                "tables": [],
+                "relationships": [],
+            }
+
+        raw_tables = knowledge.get(
+            "tables",
+            {},
+        )
+
+        converted_tables = []
+
+        # --------------------------------------------------------
+        # Cache dictionary format
+        # --------------------------------------------------------
+
+        if isinstance(
+            raw_tables,
+            dict,
+        ):
+
+            for table_name, info in raw_tables.items():
+
+                if not isinstance(
+                    info,
+                    dict,
+                ):
+                    info = {}
+
+                columns = info.get(
+                    "columns",
+                    [],
+                )
+
+                normalized_columns = []
+
+                for column in columns:
+
+                    if isinstance(
+                        column,
+                        dict,
+                    ):
+
+                        normalized_columns.append(
+                            {
+                                "name": column.get(
+                                    "name",
+                                    "",
+                                ),
+                                "type": column.get(
+                                    "type",
+                                    "",
+                                ),
+                            }
+                        )
+
+                    else:
+
+                        normalized_columns.append(
+                            {
+                                "name": str(column),
+                                "type": "",
+                            }
+                        )
+
+                converted_tables.append(
+                    {
+                        "table_name": str(
+                            info.get(
+                                "table_name",
+                                table_name,
+                            )
+                        ),
+                        "columns": normalized_columns,
+                    }
+                )
+
+        # --------------------------------------------------------
+        # Already-converted list format
+        # --------------------------------------------------------
+
+        elif isinstance(
+            raw_tables,
+            list,
+        ):
+
+            for info in raw_tables:
+
+                if not isinstance(
+                    info,
+                    dict,
+                ):
+                    continue
+
+                converted_tables.append(
+                    {
+                        "table_name": str(
+                            info.get(
+                                "table_name",
+                                "",
+                            )
+                        ),
+                        "columns": info.get(
+                            "columns",
+                            [],
+                        ),
+                    }
+                )
+
+        # --------------------------------------------------------
+        # Relationships
+        # --------------------------------------------------------
+
+        relationships = knowledge.get(
+            "relationships",
+            [],
+        )
+
+        if not isinstance(
+            relationships,
+            list,
+        ):
+            relationships = []
+
         return {
-            x for x in re.findall(r"[a-zA-Z_][a-zA-Z0-9_]+", str(value).lower())
-            if len(x) > 1
+            "tables": converted_tables,
+            "relationships": relationships,
         }
 
-    def select_relevant_tables(self, knowledge, question, max_tables=3):
-        """Select only tables useful for the question, then add one-hop FK neighbors."""
-        tables = knowledge.get("tables", {}) or {}
-        relationships = knowledge.get("relationships", []) or []
-        q = str(question).lower()
-        q_tokens = self._tokens(q)
-        stop = {
-            "what", "which", "where", "when", "who", "show", "give", "tell",
-            "the", "all", "for", "from", "with", "about", "does", "are", "is",
-            "how", "many", "can", "you", "please", "last", "this", "that",
-            "total", "get", "list", "me", "and", "or", "of", "in", "on",
-        }
-        q_tokens -= stop
-        scored = []
-        for table_name, info in tables.items():
-            score = 0
-            tn = str(table_name).lower()
-            tt = self._tokens(tn)
-            if tn in q:
-                score += 12
-            score += 6 * len(q_tokens & tt)
-            for col in (info.get("columns", []) or []):
-                name = col.get("name", "") if isinstance(col, dict) else str(col)
-                cn = str(name).lower()
-                ct = self._tokens(cn)
-                if cn and cn in q:
-                    score += 9
-                score += 4 * len(q_tokens & ct)
-            if score:
-                scored.append((score, table_name))
-        scored.sort(key=lambda x: (-x[0], str(x[1])))
-        selected = [name for _, name in scored[:max_tables]]
+    # ============================================================
+    # SIMPLE DATABASE REQUESTS
+    # ============================================================
 
-        if not selected:
-            # Conservative fallback: tables whose names are common business concepts.
-            preferred = [
-                "sales", "orders", "customers", "employees", "weavers",
-                "payments", "revenue", "inventory", "stock", "users",
+    @staticmethod
+    def _simple_schema_answer(
+        question,
+        knowledge,
+    ):
+        """
+        Handle questions that don't require SQL.
+        """
+
+        q = str(
+            question or ""
+        ).lower().strip()
+
+        raw_tables = knowledge.get(
+            "tables",
+            {},
+        )
+
+        if isinstance(
+            raw_tables,
+            dict,
+        ):
+            tables = list(
+                raw_tables.keys()
+            )
+
+        elif isinstance(
+            raw_tables,
+            list,
+        ):
+            tables = [
+                item.get(
+                    "table_name"
+                )
+                for item in raw_tables
+                if isinstance(
+                    item,
+                    dict,
+                )
+                and item.get(
+                    "table_name"
+                )
             ]
-            for name in preferred:
-                if name in tables and name not in selected:
-                    selected.append(name)
-                if len(selected) >= max_tables:
-                    break
-        if not selected:
-            selected = list(tables.keys())[:max_tables]
 
-        # Add only direct FK neighbors when there is room.
-        for rel in relationships:
-            a = rel.get("source_table") or rel.get("from_table")
-            b = rel.get("target_table") or rel.get("to_table")
-            if a in selected and b in tables and b not in selected and len(selected) < max_tables:
-                selected.append(b)
-            elif b in selected and a in tables and a not in selected and len(selected) < max_tables:
-                selected.append(a)
-        return selected
+        else:
+            tables = []
 
-    def schema_text(self, knowledge, table_names=None) -> str:
-        tables = knowledge.get("tables", {}) or {}
-        relationships = knowledge.get("relationships", []) or []
-        selected = set(table_names or tables.keys())
-        parts = []
-        for table_name in table_names or tables.keys():
-            info = tables.get(table_name, {})
-            cols = []
-            for col in info.get("columns", []) or []:
-                if isinstance(col, dict):
-                    cols.append(f"{col.get('name','')}:{col.get('type','')}")
-                else:
-                    cols.append(str(col))
-            parts.append(f"TABLE {table_name}: " + ", ".join(cols))
-        rels = []
-        for rel in relationships:
-            a = rel.get("source_table") or rel.get("from_table")
-            b = rel.get("target_table") or rel.get("to_table")
-            if a in selected and b in selected:
-                ac = rel.get("source_column") or rel.get("from_column") or ""
-                bc = rel.get("target_column") or rel.get("to_column") or ""
-                rels.append(f"{a}.{ac}={b}.{bc}")
-        if rels:
-            parts.append("FK: " + "; ".join(rels))
-        return "\n".join(parts)
-
-    def _simple_schema_answer(self, question, knowledge):
-        """Handle requests that require no SQL/LLM."""
-        q = str(question).lower().strip()
-        tables = list((knowledge.get("tables", {}) or {}).keys())
         patterns = (
-            "show all the database", "show all database", "list all tables",
-            "list the tables", "what tables are there", "show database tables",
-            "show all tables", "list tables", "what are the tables",
+            "show all the database",
+            "show all database",
+            "list all tables",
+            "list the tables",
+            "what tables are there",
+            "show database tables",
+            "show all tables",
+            "list tables",
+            "what are the tables",
+            "what tables exist",
         )
-        if any(p in q for p in patterns):
-            if not tables:
-                return "The selected database has no readable tables.", None
-            return "Tables in the selected database:\n\n" + "\n".join(
-                f"{i}. {name}" for i, name in enumerate(tables, 1)
-            ), {"type": "list_tables", "tables": tables}
-        return None, None
 
-    def generate_sql_with_ollama(self, question, schema_text):
-        system_prompt = (
-            "Convert the user's question into ONE safe PostgreSQL SELECT query. "
-            "Use only the supplied schema. Never invent tables or columns. "
-            "Use JOINs only when needed. Return JSON only: "
-            '{"sql":"SELECT ..."}. Do not explain. Do not use INSERT, UPDATE, '
-            "DELETE, DROP, ALTER, CREATE, TRUNCATE, GRANT, REVOKE or multiple statements."
+        if any(
+            pattern in q
+            for pattern in patterns
+        ):
+
+            if not tables:
+
+                return (
+                    "The selected database has no readable tables.",
+                    {
+                        "type": "list_tables",
+                        "tables": [],
+                    },
+                )
+
+            answer = (
+                "Tables in the selected database:\n\n"
+                + "\n".join(
+                    f"{index}. {name}"
+                    for index, name in enumerate(
+                        tables,
+                        1,
+                    )
+                )
+            )
+
+            return (
+                answer,
+                {
+                    "type": "list_tables",
+                    "tables": tables,
+                },
+            )
+
+        return (
+            None,
+            None,
         )
-        user_prompt = f"SCHEMA:\n{schema_text}\n\nQUESTION:\n{question}"
+
+    # ============================================================
+    # OLLAMA SQL FALLBACK
+    # ============================================================
+
+    def generate_sql_with_ollama(
+        self,
+        question,
+        schema_text,
+    ):
+        """
+        Ollama is used ONLY when deterministic SQL generation
+        cannot resolve the question.
+        """
+
+        system_prompt = (
+            "Convert the user's question into ONE safe PostgreSQL "
+            "SELECT query. "
+            "Use only the supplied schema. "
+            "Never invent tables or columns. "
+            "Use SUM for total/overall questions. "
+            "Use COUNT for record-count questions. "
+            "Use AVG for average questions. "
+            "Use MAX for maximum questions. "
+            "Use MIN for minimum questions. "
+            "Return JSON only: "
+            '{"sql":"SELECT ..."}'
+            ". "
+            "Do not explain. "
+            "Do not use INSERT, UPDATE, DELETE, DROP, ALTER, "
+            "CREATE, TRUNCATE, GRANT, REVOKE, or multiple statements."
+        )
+
+        user_prompt = (
+            f"SCHEMA:\n"
+            f"{schema_text}\n\n"
+            f"QUESTION:\n"
+            f"{question}"
+        )
+
         return ollama_client.generate_json(
             system_prompt,
             user_prompt,
@@ -188,107 +564,941 @@ class CustomAIEngine:
             timeout=self.SQL_TIMEOUT,
         )
 
-    def execute_sql(self, engine, sql):
+    # ============================================================
+    # SQL EXECUTION
+    # ============================================================
+
+
+    def execute_sql(
+        self,
+        engine,
+        sql,
+        params=None,
+    ):
+        """
+        Safely execute a SELECT/WITH query.
+
+        QueryBuilder may generate named parameters such as
+        :date_start and :date_end. Those parameters are passed
+        directly to SQLAlchemy.
+        """
         sql = validate_sql(sql)
+        params = params or {}
+
         with engine.connect() as connection:
-            result = connection.execute(text(sql))
+            result = connection.execute(
+                text(sql),
+                params,
+            )
+
             columns = list(result.keys())
-            rows = [
-                {column: safe_value(value) for column, value in zip(columns, row)}
-                for row in result.fetchmany(100)
-            ]
-        return {"success": True, "columns": columns, "rows": rows,
-                "row_count": len(rows), "sql": sql}
+            rows = []
+
+            for row in result.fetchmany(100):
+                rows.append(
+                    {
+                        column: safe_value(value)
+                        for column, value in zip(columns, row)
+                    }
+                )
+
+        return {
+            "success": True,
+            "columns": columns,
+            "rows": rows,
+            "row_count": len(rows),
+            "sql": sql,
+        }
+
+    # ============================================================
+    # LOCAL ANSWER FORMATTER
+    # ============================================================
 
     @staticmethod
-    def local_answer(question, rows):
+    def local_answer(
+        question,
+        rows,
+    ):
+        """
+        Format database results without another LLM call.
+
+        This is especially important for aggregate queries.
+
+        Example:
+
+            SELECT SUM(total_balance)
+            -> 12500
+
+        Answer:
+
+            Total balance: 12500
+        """
+
         if not rows:
-            return "I couldn't find any matching records for your question."
+
+            return (
+                "I couldn't find any matching records "
+                "for your question."
+            )
+
+        # --------------------------------------------------------
+        # Single aggregate row
+        # --------------------------------------------------------
+
         if len(rows) == 1:
+
             row = rows[0]
+
             if len(row) == 1:
-                key, value = next(iter(row.items()))
+
+                key, value = next(
+                    iter(
+                        row.items()
+                    )
+                )
+
                 if value is None:
-                    return "No value was found for that calculation."
-                label = re.sub(r"_+", " ", str(key)).strip().capitalize()
-                return f"{label}: {value}"
+
+                    return (
+                        "No value was found "
+                        "for that calculation."
+                    )
+
+                label = re.sub(
+                    r"_+",
+                    " ",
+                    str(key),
+                ).strip()
+
+                label = label.capitalize()
+
+                return (
+                    f"{label}: {value}"
+                )
+
             parts = []
+
             for key, value in row.items():
-                label = re.sub(r"_+", " ", str(key)).strip().capitalize()
-                parts.append(f"{label}: {value}")
-            return "\n".join(parts)
-        return f"The database returned {len(rows)} records."
 
-    def generate_answer(self, question, execution, sql, language="en-US"):
-        # Never call Ollama for simple/single-row database results.
-        return self.local_answer(question, execution.get("rows", []))
+                label = re.sub(
+                    r"_+",
+                    " ",
+                    str(key),
+                ).strip()
 
-    def _result(self, started, **kwargs):
-        kwargs["processing_time"] = round(time.perf_counter() - started, 3)
+                label = label.capitalize()
+
+                parts.append(
+                    f"{label}: {value}"
+                )
+
+            return "\n".join(
+                parts
+            )
+
+        # --------------------------------------------------------
+        # Multiple records
+        # --------------------------------------------------------
+
+        parts = []
+
+        for row in rows[:20]:
+
+            row_parts = []
+
+            for key, value in row.items():
+
+                label = re.sub(
+                    r"_+",
+                    " ",
+                    str(key),
+                ).strip()
+
+                label = label.capitalize()
+
+                row_parts.append(
+                    f"{label}: {value}"
+                )
+
+            parts.append(
+                " | ".join(
+                    row_parts
+                )
+            )
+
+        if parts:
+
+            return "\n".join(
+                parts
+            )
+
+        return (
+            f"The database returned "
+            f"{len(rows)} records."
+        )
+
+    # ============================================================
+    # FINAL DATABASE ANSWER
+    # ============================================================
+
+    def generate_answer(
+        self,
+        question,
+        execution,
+        sql,
+        language="en-US",
+    ):
+        """
+        Database answers are formatted locally.
+
+        No Ollama call is required for normal database results.
+        """
+
+        return self.local_answer(
+            question,
+            execution.get(
+                "rows",
+                [],
+            ),
+        )
+
+    # ============================================================
+    # RESULT HELPER
+    # ============================================================
+
+    @staticmethod
+    def _result(
+        started,
+        **kwargs,
+    ):
+
+        kwargs[
+            "processing_time"
+        ] = round(
+            time.perf_counter()
+            - started,
+            3,
+        )
+
         return kwargs
 
-    def process(self, question, engine, database_id=None, language="en-US"):
+    # ============================================================
+    # DETERMINISTIC DATABASE PIPELINE
+    # ============================================================
+
+    def _deterministic_query(
+        self,
+        question,
+        knowledge,
+    ):
+        """
+        Run:
+
+            MetricEngine
+            IntentEngine
+            EntityEngine
+            ReasoningEngine
+            QueryBuilder
+
+        Returns:
+
+            {
+                metric,
+                intent,
+                entities,
+                reasoning,
+                query
+            }
+        """
+
+        schema = (
+            self._convert_schema_for_engines(
+                knowledge
+            )
+        )
+
+        # --------------------------------------------------------
+        # Metric
+        # --------------------------------------------------------
+
+        metric_result = (
+            self.metric_engine.understand(
+                question
+            )
+        )
+
+        print(
+            "Metric result:",
+            metric_result,
+        )
+
+        # --------------------------------------------------------
+        # Intent
+        # --------------------------------------------------------
+
+        intent_result = (
+            self.intent_engine.understand(
+                question
+            )
+        )
+
+        print(
+            "Intent result:",
+            intent_result,
+        )
+
+        # --------------------------------------------------------
+        # Entities
+        # --------------------------------------------------------
+
+        entity_result = (
+            self.entity_engine.extract(
+                question
+            )
+        )
+
+        print(
+            "Entity result:",
+            entity_result,
+        )
+
+        # --------------------------------------------------------
+        # Reasoning
+        # --------------------------------------------------------
+
+        reasoning_result = (
+            self.reasoning_engine.reason(
+                question=question,
+                intent_result=intent_result,
+                entity_result=entity_result,
+                schema=schema,
+                metric_result=metric_result,
+                business_context_result=None,
+            )
+        )
+
+        selected_table = (
+            reasoning_result.get(
+                "selected_table"
+            )
+        )
+
+        print(
+            "Selected table:",
+            (
+                selected_table.get(
+                    "table_name"
+                )
+                if selected_table
+                else None
+            ),
+        )
+
+        # --------------------------------------------------------
+        # Query Builder
+        # --------------------------------------------------------
+
+        query_result = (
+            self.query_builder.build(
+                question=question,
+                intent_result=intent_result,
+                entity_result=entity_result,
+                reasoning_result=reasoning_result,
+                schema=schema,
+                metric_result=metric_result,
+                query_plan=None,
+            )
+        )
+
+        print(
+            "Query builder result:",
+            query_result,
+        )
+
+        return {
+            "schema": schema,
+            "metric": metric_result,
+            "intent": intent_result,
+            "entities": entity_result,
+            "reasoning": reasoning_result,
+            "query": query_result,
+        }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    # ============================================================
+    # MAIN PROCESS
+    # ============================================================
+
+    def process(
+        self,
+        question,
+        engine,
+        database_id=None,
+        language="en-US",
+        allow_ollama_fallback=True,
+    ):
+
         started = time.perf_counter()
-        question = str(question or "").strip()
+
+        question = str(
+            question or ""
+        ).strip()
+
+        # --------------------------------------------------------
+        # Empty question
+        # --------------------------------------------------------
+
         if not question:
-            return self._result(started, success=False, answer="Please enter a database question.",
-                                sql=None, execution={"success": False, "reason": "Empty question"})
-        try:
-            knowledge = self.get_schema(engine, database_id)
-        except Exception as exc:
-            print("Database schema error:", exc)
-            return self._result(started, success=False,
-                                answer="I could not read the database schema.", sql=None,
-                                execution={"success": False, "reason": str(exc)})
 
-        instant, instant_meta = self._simple_schema_answer(question, knowledge)
-        if instant is not None:
-            return self._result(started, success=True, question=question, sql=None,
-                                answer=instant, execution={"success": True, "rows": [], "columns": []},
-                                query_plan=instant_meta, database_knowledge_cached=True)
+            return self._result(
+                started,
+                success=False,
+                question=question,
+                answer=(
+                    "Please enter a database question."
+                ),
+                sql=None,
+                execution={
+                    "success": False,
+                    "reason": "Empty question",
+                },
+            )
 
-        relevant = self.select_relevant_tables(knowledge, question, max_tables=3)
-        schema = self.schema_text(knowledge, relevant)
-        print("\n========================================")
-        print("FAST RELEVANT DATABASE SCHEMA")
-        print("Question:", question)
-        print("Tables:", relevant)
-        print("Schema chars:", len(schema))
-        print("========================================\n")
-        try:
-            plan = self.generate_sql_with_ollama(question, schema)
-        except Exception as exc:
-            print("Ollama SQL generation error:", exc)
-            return self._result(started, success=False, question=question,
-                                answer="The local SQL model could not generate the query quickly enough. Please try a more specific question.",
-                                sql=None, execution={"success": False, "reason": str(exc)},
-                                query_plan={"relevant_tables": relevant})
-        sql = plan.get("sql") if isinstance(plan, dict) else None
-        if not sql:
-            return self._result(started, success=False, question=question,
-                                answer="I could not generate a database query for that question.",
-                                sql=None, execution={"success": False, "reason": "No SQL generated"},
-                                query=plan, query_plan={"relevant_tables": relevant})
-        try:
-            sql = validate_sql(sql)
-            execution = self.execute_sql(engine, sql)
-        except Exception as exc:
-            print("Database execution/validation error:", exc)
-            return self._result(started, success=False, question=question,
-                                answer="The generated database query could not be executed safely.",
-                                sql=sql, execution={"success": False, "reason": str(exc)}, query=plan)
-        rows = execution.get("rows", [])
-        answer = self.generate_answer(question, execution, sql, language)
-        print("Generated SQL:", sql)
-        print("Rows returned:", len(rows))
-        print("LOCAL DATABASE ANSWER - Ollama skipped")
-        return self._result(started, success=True, question=question, sql=sql,
-                            answer=answer, execution=execution, query=plan,
-                            intent=plan.get("intent") if isinstance(plan, dict) else None,
-                            entities=plan.get("entities") if isinstance(plan, dict) else [],
-                            metric=plan.get("metric") if isinstance(plan, dict) else None,
-                            query_plan={"relevant_tables": relevant},
-                            database_knowledge_cached=True)
+        # --------------------------------------------------------
+        # Schema
+        # --------------------------------------------------------
 
+        try:
+
+            knowledge = self.get_schema(
+                engine,
+                database_id,
+            )
+
+        except Exception as exc:
+
+            print(
+                "Database schema error:",
+                exc,
+            )
+
+            return self._result(
+                started,
+                success=False,
+                question=question,
+                answer=(
+                    "I could not read the "
+                    "database schema."
+                ),
+                sql=None,
+                execution={
+                    "success": False,
+                    "reason": str(exc),
+                },
+            )
+
+        # --------------------------------------------------------
+        # Instant schema requests
+        # --------------------------------------------------------
+
+        instant_answer, instant_meta = (
+            self._simple_schema_answer(
+                question,
+                knowledge,
+            )
+        )
+
+        if instant_answer is not None:
+
+            return self._result(
+                started,
+                success=True,
+                question=question,
+                sql=None,
+                answer=instant_answer,
+                execution={
+                    "success": True,
+                    "rows": [],
+                    "columns": [],
+                },
+                query_plan=instant_meta,
+                database_knowledge_cached=True,
+                ai_engine="deterministic",
+            )
+
+        # --------------------------------------------------------
+        # DETERMINISTIC PIPELINE
+        # --------------------------------------------------------
+
+        try:
+
+            pipeline = (
+                self._deterministic_query(
+                    question,
+                    knowledge,
+                )
+            )
+
+            query_result = pipeline[
+                "query"
+            ]
+
+        except Exception as exc:
+
+            print(
+                "Deterministic database pipeline error:",
+                exc,
+            )
+
+            pipeline = None
+
+            query_result = {
+                "success": False,
+                "reason": str(exc),
+            }
+
+        # --------------------------------------------------------
+        # Successful deterministic SQL
+        # --------------------------------------------------------
+
+        if (
+            isinstance(
+                query_result,
+                dict,
+            )
+            and query_result.get(
+                "success"
+            )
+            and query_result.get(
+                "sql"
+            )
+        ):
+
+            sql = query_result[
+                "sql"
+            ]
+
+            print()
+            print(
+                "========================================"
+            )
+            print(
+                "DETERMINISTIC SQL"
+            )
+            print(
+                "========================================"
+            )
+            print(
+                sql
+            )
+            print(
+                "========================================"
+            )
+
+            # ----------------------------------------------------
+            # Execute
+            # ----------------------------------------------------
+
+            try:
+
+                execution = (
+                    self.execute_sql(
+                        engine,
+                        sql,
+                        query_result.get(
+                            "params",
+                            {},
+                        ),
+                    )
+                )
+
+            except Exception as exc:
+
+                print(
+                    "Deterministic SQL execution error:",
+                    exc,
+                )
+
+                execution = {
+                    "success": False,
+                    "reason": str(exc),
+                    "rows": [],
+                    "columns": [],
+                }
+
+            # ----------------------------------------------------
+            # Successful execution
+            # ----------------------------------------------------
+
+            if execution.get(
+                "success"
+            ):
+
+                rows = execution.get(
+                    "rows",
+                    [],
+                )
+
+                answer = (
+                    self.generate_answer(
+                        question,
+                        execution,
+                        sql,
+                        language,
+                    )
+                )
+
+                print(
+                    "Rows returned:",
+                    len(rows),
+                )
+
+                print(
+                    "LOCAL DATABASE ANSWER - "
+                    "Ollama skipped"
+                )
+
+                return self._result(
+                    started,
+                    success=True,
+                    question=question,
+                    sql=sql,
+                    answer=answer,
+                    execution=execution,
+                    metric=pipeline[
+                        "metric"
+                    ],
+                    intent=pipeline[
+                        "intent"
+                    ],
+                    entities=pipeline[
+                        "entities"
+                    ],
+                    reasoning=pipeline[
+                        "reasoning"
+                    ],
+                    query_plan={
+                        "type": "deterministic",
+                    },
+                    database_knowledge_cached=True,
+                    ai_engine="deterministic",
+                )
+
+        # --------------------------------------------------------
+        # DETERMINISTIC PIPELINE FAILED
+        # --------------------------------------------------------
+
+        # AUTO source detection uses the deterministic database pipeline
+        # as a capability probe. Never call Ollama merely to decide whether
+        # a question belongs to the database.
+        if not allow_ollama_fallback:
+            return self._result(
+                started,
+                success=False,
+                question=question,
+                sql=None,
+                answer="Database deterministic pipeline could not resolve this question.",
+                execution={
+                    "success": False,
+                    "reason": "Deterministic database pipeline could not resolve the question.",
+                    "rows": [],
+                    "columns": [],
+                },
+                query=pipeline,
+                query_plan={
+                    "type": "deterministic_probe_failed",
+                },
+                database_knowledge_cached=True,
+                ai_engine="deterministic_probe",
+            )
+
+        print()
+        print(
+            "Deterministic SQL generation "
+            "could not resolve the question."
+        )
+
+        # --------------------------------------------------------
+        # Build small schema for Ollama
+        # --------------------------------------------------------
+
+        try:
+
+            schema = (
+                self._convert_schema_for_engines(
+                    knowledge
+                )
+            )
+
+            selected_tables = []
+
+            if pipeline:
+
+                reasoning = pipeline.get(
+                    "reasoning",
+                    {},
+                )
+
+                candidates = reasoning.get(
+                    "candidate_tables",
+                    [],
+                )
+
+                for candidate in candidates[:3]:
+
+                    table_name = candidate.get(
+                        "table_name"
+                    )
+
+                    if table_name:
+                        selected_tables.append(
+                            table_name
+                        )
+
+            if not selected_tables:
+
+                selected_tables = [
+                    table.get(
+                        "table_name"
+                    )
+                    for table in schema.get(
+                        "tables",
+                        [],
+                    )[:3]
+                    if table.get(
+                        "table_name"
+                    )
+                ]
+
+            schema_text_parts = []
+
+            for table in schema.get(
+                "tables",
+                [],
+            ):
+
+                table_name = table.get(
+                    "table_name"
+                )
+
+                if table_name not in selected_tables:
+                    continue
+
+                columns = table.get(
+                    "columns",
+                    [],
+                )
+
+                column_text = ", ".join(
+                    f"{column.get('name')}:{column.get('type','')}"
+                    for column in columns
+                )
+
+                schema_text_parts.append(
+                    f"TABLE {table_name}: "
+                    f"{column_text}"
+                )
+
+            schema_text = "\n".join(
+                schema_text_parts
+            )
+
+            if not schema_text:
+
+                return self._result(
+                    started,
+                    success=False,
+                    question=question,
+                    sql=None,
+                    answer=(
+                        "I could not determine "
+                        "which database information "
+                        "is required for that question."
+                    ),
+                    execution={
+                        "success": False,
+                        "reason": (
+                            "No suitable schema "
+                            "was found."
+                        ),
+                    },
+                    ai_engine="deterministic",
+                )
+
+            print()
+            print(
+                "========================================"
+            )
+            print(
+                "OLLAMA SQL FALLBACK"
+            )
+            print(
+                "Schema chars:",
+                len(schema_text),
+            )
+            print(
+                "========================================"
+            )
+
+            # ----------------------------------------------------
+            # Ollama fallback
+            # ----------------------------------------------------
+
+            plan = (
+                self.generate_sql_with_ollama(
+                    question,
+                    schema_text,
+                )
+            )
+
+            sql = (
+                plan.get("sql")
+                if isinstance(
+                    plan,
+                    dict,
+                )
+                else None
+            )
+
+            if not sql:
+
+                return self._result(
+                    started,
+                    success=False,
+                    question=question,
+                    answer=(
+                        "I could not generate "
+                        "a database query for "
+                        "that question."
+                    ),
+                    sql=None,
+                    execution={
+                        "success": False,
+                        "reason": (
+                            "Ollama returned "
+                            "no SQL."
+                        ),
+                    },
+                    query=plan,
+                    ai_engine="ollama_fallback",
+                )
+
+            # ----------------------------------------------------
+            # Validate
+            # ----------------------------------------------------
+
+            sql = validate_sql(
+                sql
+            )
+
+            # ----------------------------------------------------
+            # Execute fallback SQL
+            # ----------------------------------------------------
+
+            execution = (
+                self.execute_sql(
+                    engine,
+                    sql,
+                    {},
+                )
+            )
+
+            rows = execution.get(
+                "rows",
+                [],
+            )
+
+            answer = (
+                self.local_answer(
+                    question,
+                    rows,
+                )
+            )
+
+            print(
+                "Fallback SQL:",
+                sql,
+            )
+
+            print(
+                "Rows returned:",
+                len(rows),
+            )
+
+            return self._result(
+                started,
+                success=True,
+                question=question,
+                sql=sql,
+                answer=answer,
+                execution=execution,
+                query=plan,
+                query_plan={
+                    "type": "ollama_fallback",
+                },
+                database_knowledge_cached=True,
+                ai_engine="ollama_fallback",
+            )
+
+        except Exception as exc:
+
+            print(
+                "Ollama SQL fallback error:",
+                exc,
+            )
+
+            return self._result(
+                started,
+                success=False,
+                question=question,
+                sql=None,
+                answer=(
+                    "I could not determine a safe "
+                    "database query for that question."
+                ),
+                execution={
+                    "success": False,
+                    "reason": str(exc),
+                },
+                ai_engine="ollama_fallback",
+            )
+
+
+# ================================================================
+# GLOBAL ENGINE
+# ================================================================
 
 custom_ai_engine = CustomAIEngine()

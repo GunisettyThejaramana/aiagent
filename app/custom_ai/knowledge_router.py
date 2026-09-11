@@ -1,161 +1,129 @@
 """
-Intelligent knowledge router.
+Source hint helper for the Enterprise AI Assistant.
 
-Possible routes:
+IMPORTANT:
+    AUTO mode is NOT keyword based.
 
-    chat
-    database
-    documents
-    both
+The normal AUTO decision is made by checking real evidence from:
+    1. the connected database deterministic pipeline
+    2. the local document search index
+    3. general Ollama chat when neither source can answer
 
-Ollama performs the primary classification.
+This module only recognizes explicit user instructions such as:
+    "according to the report"
+    "from the database"
+    "use the document"
+    "compare the database with the report"
 
-A small deterministic fallback is retained so the
-application can still make a reasonable decision if
-Ollama is temporarily unavailable.
+It does not classify ordinary words such as "sales", "total", "report",
+"balance", etc. as a source.
 """
 
 from __future__ import annotations
 
-from app.ollama_client import ollama_client
-
 
 class KnowledgeRouter:
+    """Detect only explicit source requests.
 
-    # ============================================================
-    # NORMALIZE
-    # ============================================================
+    The actual AUTO routing is evidence-based and is implemented in
+    app.routes. This class intentionally does not guess a source from
+    business keywords.
+    """
 
-    def normalize(
-        self,
-        text: str,
-    ) -> str:
+    DOCUMENT_PHRASES = (
+        "according to the document",
+        "according to the documents",
+        "according to the pdf",
+        "according to the report",
+        "according to the reports",
+        "according to the file",
+        "according to the files",
+        "from the document",
+        "from the documents",
+        "from the pdf",
+        "from the report",
+        "from the reports",
+        "from the file",
+        "from the files",
+        "use the document",
+        "use the documents",
+        "use the pdf",
+        "use the report",
+        "use the file",
+        "what does the document say",
+        "what do the documents say",
+        "what does the pdf say",
+        "what does the report say",
+        "what do the reports say",
+        "what is mentioned in the document",
+        "what is mentioned in the report",
+        "what is written in the document",
+        "what is written in the report",
+        "in the document",
+        "in the pdf",
+        "in the report",
+        "in the uploaded file",
+        "in the uploaded document",
+    )
 
+    DATABASE_PHRASES = (
+        "according to the database",
+        "according to the database records",
+        "according to database records",
+        "from the database",
+        "from database",
+        "from the database records",
+        "from database records",
+        "use the database",
+        "use database",
+        "in the database",
+        "in database",
+        "from the records",
+        "from database records",
+    )
+
+    BOTH_PHRASES = (
+        "database and document",
+        "database and documents",
+        "database and pdf",
+        "database and report",
+        "database and reports",
+        "database with document",
+        "database with documents",
+        "database with pdf",
+        "database with report",
+        "database with reports",
+        "compare database with",
+        "compare the database with",
+        "compare database and",
+        "compare the database and",
+        "compare database to",
+        "compare the database to",
+    )
+
+    @staticmethod
+    def normalize(text: str) -> str:
         return " ".join(
-            str(text or "")
-            .lower()
-            .strip()
-            .split()
+            str(text or "").lower().strip().split()
         )
 
-    # ============================================================
-    # DETERMINISTIC FALLBACK
-    # ============================================================
-
-    def fallback_route(
-        self,
-        question: str,
-    ) -> str:
-
+    def explicit_route(self, question: str) -> str | None:
+        """Return an explicitly requested source, otherwise None."""
         q = self.normalize(question)
 
         if not q:
-            return "chat"
+            return None
 
-        # --------------------------------------------------------
-        # Explicit document language
-        # --------------------------------------------------------
-
-        document_terms = [
-            "document",
-            "documents",
-            "file",
-            "files",
-            "pdf",
-            "report",
-            "reports",
-            "manual",
-            "policy",
-            "policies",
-            "contract",
-            "agreement",
-            "presentation",
-            "according to the report",
-            "according to the document",
-            "according to the file",
-            "what does the report say",
-            "what does the document say",
-            "what is mentioned in the report",
-            "what is mentioned in the document",
-            "what is written in the report",
-            "what is written in the document",
-        ]
-
-        if any(
-            term in q
-            for term in document_terms
-        ):
-            return "documents"
-
-        # --------------------------------------------------------
-        # Database terms
-        # --------------------------------------------------------
-
-        database_terms = [
-            "database",
-            "table",
-            "tables",
-            "record",
-            "records",
-            "row",
-            "rows",
-            "weaver",
-            "weavers",
-            "loom",
-            "looms",
-            "saree",
-            "sarees",
-            "warp",
-            "warps",
-            "weft",
-            "wefts",
-            "stock",
-            "stocks",
-            "payment",
-            "payments",
-            "balance",
-            "transaction",
-            "transactions",
-            "quantity",
-            "price",
-            "sales data",
-            "sales records",
-        ]
-
-        if any(
-            term in q
-            for term in database_terms
-        ):
-            return "database"
-
-        # --------------------------------------------------------
-        # Comparison
-        # --------------------------------------------------------
-
-        both_terms = [
-            "database and document",
-            "database and documents",
-            "database vs document",
-            "database vs documents",
-            "compare database",
-            "compare the database",
-        ]
-
-        if any(
-            term in q
-            for term in both_terms
-        ):
+        if any(phrase in q for phrase in self.BOTH_PHRASES):
             return "both"
 
-        # --------------------------------------------------------
-        # Default = CHAT
-        # --------------------------------------------------------
+        if any(phrase in q for phrase in self.DOCUMENT_PHRASES):
+            return "documents"
 
-        return "chat"
+        if any(phrase in q for phrase in self.DATABASE_PHRASES):
+            return "database"
 
-    # ============================================================
-    # FAST LOCAL ROUTING
-    # ============================================================
+        return None
 
     def route(
         self,
@@ -163,62 +131,24 @@ class KnowledgeRouter:
         database_available: bool = True,
         documents_available: bool = True,
     ) -> str:
-        """Route locally first. No LLM call is used for routing."""
-        q = self.normalize(question)
-        if not q:
-            return "chat"
+        """Compatibility method.
 
-        # Explicit combined requests must be checked first.
-        both_terms = (
-            "database and document", "database and documents",
-            "database and pdf", "database and report",
-            "both database", "compare database",
-            "compare the database with", "compare database with",
-        )
-        if any(x in q for x in both_terms):
-            return "both"
+        It returns an explicit source when the user explicitly requested
+        one. Otherwise it returns ``auto`` so the caller can perform
+        evidence-based routing.
+        """
+        explicit = self.explicit_route(question)
 
-        document_terms = (
-            "document", "documents", "pdf", "file", "files",
-            "report", "reports", "manual", "policy", "policies",
-            "contract", "agreement", "presentation",
-            "according to the report", "according to the document",
-            "according to the pdf", "what does the report say",
-            "what does the document say", "what does the pdf say",
-            "what is mentioned in the report",
-            "what is mentioned in the document",
-            "uploaded file", "uploaded document",
-        )
-        database_terms = (
-            "database", "table", "tables", "record", "records",
-            "row", "rows", "weaver", "weavers", "loom", "looms",
-            "saree", "sarees", "warp", "warps", "weft", "wefts",
-            "stock", "stocks", "payment", "payments", "balance",
-            "transaction", "transactions", "quantity", "price",
-            "sales", "sale", "revenue", "profit", "customer",
-            "customers", "employee", "employees", "salary",
-            "invoice", "invoices", "order", "orders", "inventory",
-            "production", "production data", "business data",
-            "last month", "this month", "today", "yesterday",
-            "last year", "this year", "how many", "total",
-            "count", "average", "sum",
-        )
+        if explicit == "database" and not database_available:
+            return "auto"
 
-        has_doc = any(x in q for x in document_terms)
-        has_db = any(x in q for x in database_terms)
+        if explicit == "documents" and not documents_available:
+            return "auto"
 
-        if has_doc and has_db:
-            return "both"
-        if has_doc:
-            return "documents"
-        if has_db:
-            return "database"
+        if explicit:
+            return explicit
 
-        return "chat"
+        return "auto"
 
-
-# ============================================================
-# GLOBAL ROUTER
-# ============================================================
 
 knowledge_router = KnowledgeRouter()

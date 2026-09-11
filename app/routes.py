@@ -351,36 +351,25 @@ def answer_from_documents(
     user_id: str,
     history: list,
     database_id=None,
+    search_result=None,
+    save_memory: bool = True,
 ):
     """
-    Search local documents and use Ollama to generate
-    the final answer.
+    Search local documents and use Ollama for the final answer.
 
-    Context is deliberately limited for performance.
+    ``search_result`` can be supplied by AUTO routing so the document
+    index is searched only once.
     """
-
     try:
-
-        search_result = search_document_context(
-            question
-        )
-
+        if search_result is None:
+            search_result = search_document_context(question)
     except Exception as exc:
+        print(f"Document search error: {exc}")
 
-        print(
-            f"Document search error: {exc}"
-        )
+        answer = "The local document search could not be completed."
 
-        answer = (
-            "The local document search could not "
-            "be completed."
-        )
-
-        add_message(
-            user_id,
-            "assistant",
-            answer,
-        )
+        if save_memory:
+            add_message(user_id, "assistant", answer)
 
         return {
             "success": False,
@@ -400,41 +389,19 @@ def answer_from_documents(
             "evidence": [],
         }
 
-    documents = search_result.get(
-        "documents",
-        []
-    )
+    if not isinstance(search_result, dict):
+        search_result = {}
 
-    context = search_result.get(
-        "context",
-        ""
-    )
-
-    score = search_result.get(
-        "score",
-        0
-    )
-
-    source = search_result.get(
-        "source"
-    )
-
-    # ============================================================
-    # NO DOCUMENTS
-    # ============================================================
+    documents = search_result.get("documents", [])
+    context = search_result.get("context", "")
+    score = search_result.get("score", 0)
+    source = search_result.get("source")
 
     if not documents:
+        answer = "I could not find relevant information in the local documents."
 
-        answer = (
-            "I could not find relevant information "
-            "in the local documents."
-        )
-
-        add_message(
-            user_id,
-            "assistant",
-            answer,
-        )
+        if save_memory:
+            add_message(user_id, "assistant", answer)
 
         return {
             "success": True,
@@ -454,22 +421,14 @@ def answer_from_documents(
             "evidence": [],
         }
 
-    # ============================================================
-    # NO READABLE CONTENT
-    # ============================================================
-
     if not context:
-
         answer = (
             "Relevant documents were found, "
             "but they do not contain readable text."
         )
 
-        add_message(
-            user_id,
-            "assistant",
-            answer,
-        )
+        if save_memory:
+            add_message(user_id, "assistant", answer)
 
         return {
             "success": True,
@@ -489,13 +448,7 @@ def answer_from_documents(
             "evidence": [],
         }
 
-    # ============================================================
-    # OLLAMA
-    # ============================================================
-
-    print(
-        "Generating document answer using Ollama..."
-    )
+    print("Generating document answer using Ollama...")
 
     answer = ask_document_ai(
         question=question,
@@ -504,71 +457,30 @@ def answer_from_documents(
         history=history,
     )
 
-    add_message(
-        user_id,
-        "assistant",
-        answer,
-    )
-
-    print(
-        "Document answer generated."
-    )
-
-    # ============================================================
-    # EVIDENCE
-    # ============================================================
+    if save_memory:
+        add_message(user_id, "assistant", answer)
 
     evidence = []
 
-    for doc in documents[
-        :MAX_DOCUMENTS_FOR_AI
-    ]:
-
-        content = getattr(
-            doc,
-            "page_content",
-            "",
-        )
-
+    for doc in documents[:MAX_DOCUMENTS_FOR_AI]:
+        content = getattr(doc, "page_content", "")
         if not content:
             continue
 
-        metadata = getattr(
-            doc,
-            "metadata",
-            {},
-        )
-
+        metadata = getattr(doc, "metadata", {})
         doc_source = ""
 
-        if isinstance(
-            metadata,
-            dict
-        ):
-
+        if isinstance(metadata, dict):
             doc_source = (
-                metadata.get(
-                    "source",
-                    ""
-                )
-                or metadata.get(
-                    "file_name",
-                    ""
-                )
-                or metadata.get(
-                    "filename",
-                    ""
-                )
+                metadata.get("source", "")
+                or metadata.get("file_name", "")
+                or metadata.get("filename", "")
             )
 
         evidence.append(
             {
                 "source": doc_source,
-                "text": str(
-                    content
-                )[
-                    :MAX_DOCUMENT_CHARS
-                ]
+                "text": str(content)[:MAX_DOCUMENT_CHARS],
             }
         )
 
@@ -594,32 +506,35 @@ def answer_from_documents(
 # ================================================================
 # GENERIC DATABASE PROCESSING
 # ================================================================
+# ================================================================
+# GENERIC DATABASE PROCESSING
+# ================================================================
 
 def answer_from_database(
     question: str,
     user_id: str,
     history: list,
-    database_id: int
+    database_id: int,
+    allow_ollama_fallback: bool = True,
+    save_memory: bool = True,
 ):
     """
     Process a database question using the Custom AI Engine.
 
-    The database engine is cached so repeated questions do not
-    recreate the SQLAlchemy engine.
+    AUTO mode sets ``allow_ollama_fallback=False``. This makes the
+    database engine act as a fast capability probe and prevents a
+    slow Ollama SQL generation call from being used for routing.
+
+    Explicit database mode keeps the Ollama SQL fallback enabled.
     """
-
     if database_id is None:
-
         answer = (
             "Please connect or select a database "
             "for this question."
         )
 
-        add_message(
-            user_id,
-            "assistant",
-            answer
-        )
+        if save_memory:
+            add_message(user_id, "assistant", answer)
 
         return {
             "success": False,
@@ -632,115 +547,52 @@ def answer_from_database(
             "rows": [],
             "columns": [],
             "memory_count": len(history),
-            "ai_engine": "custom_ai"
+            "ai_engine": "custom_ai",
         }
 
     try:
+        print(f"Using database {database_id}...")
 
-        # ========================================================
-        # DATABASE CONNECTION
-        # ========================================================
-
-        print(
-            f"Using database {database_id}..."
+        selected_engine = get_cached_database_engine(
+            int(database_id)
         )
 
-        selected_engine = (
-            get_cached_database_engine(
-                int(database_id)
-            )
-        )
-
-        print(
-            "Database engine ready."
-        )
-
-        # ========================================================
-        # CUSTOM AI
-        # ========================================================
+        print("Database engine ready.")
 
         ai_result = custom_ai_engine.process(
             question,
             selected_engine,
-            database_id=database_id
+            database_id=database_id,
+            allow_ollama_fallback=allow_ollama_fallback,
         )
 
-        if not isinstance(
-            ai_result,
-            dict
-        ):
-
+        if not isinstance(ai_result, dict):
             ai_result = {}
 
-        # ========================================================
-        # SQL
-        # ========================================================
+        sql = ai_result.get("sql")
+        print(f"Generated SQL: {sql}")
 
-        sql = ai_result.get(
-            "sql"
-        )
+        execution = ai_result.get("execution", {})
 
-        print(
-            f"Generated SQL: {sql}"
-        )
-
-        # ========================================================
-        # EXECUTION
-        # ========================================================
-
-        execution = ai_result.get(
-            "execution",
-            {}
-        )
-
-        if not isinstance(
-            execution,
-            dict
-        ):
-
+        if not isinstance(execution, dict):
             execution = {}
 
-        # ========================================================
-        # EXECUTION FAILED
-        # ========================================================
-
-        if not execution.get(
-            "success",
-            False
-        ):
-
-            reason = execution.get(
-                "reason"
-            )
+        if not execution.get("success", False):
+            reason = execution.get("reason")
 
             if not reason:
-
-                query_result = ai_result.get(
-                    "query",
-                    {}
-                )
-
-                if isinstance(
-                    query_result,
-                    dict
-                ):
-
-                    reason = query_result.get(
-                        "reason"
-                    )
+                query_result = ai_result.get("query", {})
+                if isinstance(query_result, dict):
+                    reason = query_result.get("reason")
 
             if not reason:
-
                 reason = (
                     "The Custom AI Engine could not "
                     "answer the database question."
                 )
 
-            add_message(
-                user_id,
-                "assistant",
-                reason
-            )
+            if save_memory:
+                add_message(user_id, "assistant", reason)
 
             return {
                 "success": False,
@@ -753,100 +605,46 @@ def answer_from_database(
                 "rows": [],
                 "columns": [],
                 "memory_count": len(history),
-                "ai_engine": "custom_ai",
-                "intent": ai_result.get(
-                    "intent"
+                "ai_engine": ai_result.get(
+                    "ai_engine",
+                    "custom_ai",
                 ),
-                "entities": ai_result.get(
-                    "entities"
-                ),
-                "metric": ai_result.get(
-                    "metric"
-                ),
-                "query_plan": ai_result.get(
-                    "query_plan"
-                ),
-                "processing_time": ai_result.get(
-                    "processing_time"
-                )
+                "intent": ai_result.get("intent"),
+                "entities": ai_result.get("entities"),
+                "metric": ai_result.get("metric"),
+                "query_plan": ai_result.get("query_plan"),
+                "processing_time": ai_result.get("processing_time"),
             }
 
-        # ========================================================
-        # RESULT
-        # ========================================================
+        rows = execution.get("rows", [])
+        columns = execution.get("columns", [])
 
-        rows = execution.get(
-            "rows",
-            []
-        )
-
-        columns = execution.get(
-            "columns",
-            []
-        )
-
-        if not isinstance(
-            rows,
-            list
-        ):
-
+        if not isinstance(rows, list):
             rows = []
 
-        if not isinstance(
-            columns,
-            list
-        ):
-
+        if not isinstance(columns, list):
             columns = []
 
-        answer = ai_result.get(
-            "answer"
-        )
-
-        if answer is None:
-            answer = ""
-
         answer = str(
-            answer
+            ai_result.get("answer") or ""
         ).strip()
 
-        # ========================================================
-        # FALLBACK ANSWER
-        # ========================================================
-
         if not answer:
-
             if rows:
-
                 answer = (
                     "The database query completed successfully. "
                     "The returned data is available in the result."
                 )
-
             else:
-
                 answer = (
                     "The database query completed successfully, "
                     "but no matching records were returned."
                 )
 
-        print(
-            f"Rows returned: {len(rows)}"
-        )
+        print(f"Rows returned: {len(rows)}")
 
-        # ========================================================
-        # MEMORY
-        # ========================================================
-
-        add_message(
-            user_id,
-            "assistant",
-            answer
-        )
-
-        # ========================================================
-        # RETURN
-        # ========================================================
+        if save_memory:
+            add_message(user_id, "assistant", answer)
 
         return {
             "success": True,
@@ -859,37 +657,24 @@ def answer_from_database(
             "rows": rows,
             "columns": columns,
             "memory_count": len(history),
-            "ai_engine": "custom_ai",
-            "intent": ai_result.get(
-                "intent"
+            "ai_engine": ai_result.get(
+                "ai_engine",
+                "custom_ai",
             ),
-            "entities": ai_result.get(
-                "entities"
-            ),
-            "metric": ai_result.get(
-                "metric"
-            ),
-            "query_plan": ai_result.get(
-                "query_plan"
-            ),
-            "processing_time": ai_result.get(
-                "processing_time"
-            )
+            "intent": ai_result.get("intent"),
+            "entities": ai_result.get("entities"),
+            "metric": ai_result.get("metric"),
+            "query_plan": ai_result.get("query_plan"),
+            "processing_time": ai_result.get("processing_time"),
         }
 
     except ValueError as exc:
-
-        print(
-            f"Database validation error: {exc}"
-        )
+        print(f"Database validation error: {exc}")
 
         answer = str(exc)
 
-        add_message(
-            user_id,
-            "assistant",
-            answer
-        )
+        if save_memory:
+            add_message(user_id, "assistant", answer)
 
         return {
             "success": False,
@@ -902,28 +687,20 @@ def answer_from_database(
             "rows": [],
             "columns": [],
             "memory_count": len(history),
-            "ai_engine": "custom_ai"
+            "ai_engine": "custom_ai",
         }
 
     except Exception as exc:
-
-        print(
-            f"Custom AI database error: {exc}"
-        )
-
+        print(f"Custom AI database error: {exc}")
         traceback.print_exc()
 
         answer = (
-            "The database question could not be "
-            "processed: "
+            "The database question could not be processed: "
             f"{str(exc)}"
         )
 
-        add_message(
-            user_id,
-            "assistant",
-            answer
-        )
+        if save_memory:
+            add_message(user_id, "assistant", answer)
 
         return {
             "success": False,
@@ -936,14 +713,13 @@ def answer_from_database(
             "rows": [],
             "columns": [],
             "memory_count": len(history),
-            "ai_engine": "custom_ai"
+            "ai_engine": "custom_ai",
         }
 
 
 # ================================================================
 # ASK AI
 # ================================================================
-
 @router.post("/ask")
 def ask_ai(
     request: schemas.QuestionRequest,
@@ -951,25 +727,29 @@ def ask_ai(
     """
     Main Enterprise AI Assistant endpoint.
 
-    Flow:
+    AUTO mode is evidence-based, not keyword-based.
 
-    1. Normalize request.
-    2. Handle very simple chat instantly.
-    3. Route normal questions.
-    4. Save conversation memory.
-    5. Process database/documents/both/chat.
-    6. Save assistant response.
+    AUTO flow:
+        1. Fast local response for greetings.
+        2. If the user explicitly asks for a source, honor it.
+        3. Otherwise probe the connected database with the deterministic
+           pipeline and search the local document index.
+        4. Database evidence only -> database.
+        5. Document evidence only -> documents.
+        6. Both evidence sources -> one combined Ollama call.
+        7. No evidence -> normal Ollama chat.
+
+    Ollama is never called merely to decide the source.
     """
 
     request_start = time.perf_counter()
 
-    question = (
-        str(request.question or "")
-        .strip()
-    )
+    question = str(
+        request.question or ""
+    ).strip()
 
-    user_id = (
-        str(request.user_id or "default_user")
+    user_id = str(
+        request.user_id or "default_user"
     )
 
     language = (
@@ -979,16 +759,18 @@ def ask_ai(
 
     database_id = request.database_id
 
-    requested_source = (
-        request.knowledge_source
-        or "auto"
-    )
+    requested_source = str(
+        request.knowledge_source or "auto"
+    ).strip().lower()
 
-    requested_source = (
-        str(requested_source)
-        .strip()
-        .lower()
-    )
+    if requested_source not in {
+        "auto",
+        "database",
+        "documents",
+        "both",
+        "chat",
+    }:
+        requested_source = "auto"
 
     print()
     print("========================================")
@@ -998,51 +780,29 @@ def ask_ai(
     print("User ID     :", user_id)
     print("Language    :", language)
     print("Database ID :", database_id)
-    print(
-        "Knowledge Source :",
-        requested_source,
-    )
-
-    # ---------------------------------------------------------
-    # VALIDATE QUESTION
-    # ---------------------------------------------------------
+    print("Knowledge Source Requested :", requested_source)
 
     if not question:
-
         return {
             "success": False,
             "answer": "Please enter a question.",
             "source": "chat",
+            "data_source": "validation",
+            "sql": None,
+            "database_id": database_id,
         }
 
-    # ---------------------------------------------------------
+    # ---------------------------------------------------------------
     # FAST CHAT RESPONSE
-    # ---------------------------------------------------------
-    #
-    # Greetings / simple messages are handled directly by
-    # Python without calling Ollama.
-    #
-    # This is the biggest improvement for messages such as:
-    #
-    # hello
-    # hi
-    # thanks
-    # bye
-    #
-    # ---------------------------------------------------------
+    # ---------------------------------------------------------------
 
-    if requested_source in {
-        "auto",
-        "chat",
-    }:
-
+    if requested_source in {"auto", "chat"}:
         fast_answer = get_fast_response(
             question,
             language,
         )
 
         if fast_answer is not None:
-
             add_message(
                 user_id,
                 "user",
@@ -1060,15 +820,11 @@ def ask_ai(
                 - request_start
             )
 
-            print(
-                "FAST RESPONSE - Ollama skipped"
-            )
-
+            print("FAST RESPONSE - Ollama skipped")
             print(
                 f"Total request time: "
                 f"{total_time:.3f} seconds"
             )
-
             print("========================================")
             print()
 
@@ -1081,64 +837,11 @@ def ask_ai(
                 "database_id": database_id,
             }
 
-    # ---------------------------------------------------------
-    # KNOWLEDGE SOURCE ROUTING
-    # ---------------------------------------------------------
+    # ---------------------------------------------------------------
+    # MEMORY
+    # ---------------------------------------------------------------
 
-    knowledge_source = requested_source
-
-    if knowledge_source in {
-        "",
-        "auto",
-        "automatic",
-    }:
-
-        print(
-            "Routing question "
-            "using knowledge router."
-        )
-
-        try:
-
-            knowledge_source = (
-                knowledge_router.route(
-                    question
-                )
-            )
-
-        except Exception as exc:
-
-            print(
-                "Knowledge router error:",
-                exc,
-            )
-
-            knowledge_source = "chat"
-
-        knowledge_source = (
-            str(
-                knowledge_source
-            )
-            .strip()
-            .lower()
-        )
-
-    print(
-        "Final knowledge source:",
-        knowledge_source,
-    )
-
-    # ---------------------------------------------------------
-    # GET MEMORY
-    # ---------------------------------------------------------
-
-    history = get_short_history(
-        user_id
-    )
-
-    # ---------------------------------------------------------
-    # SAVE USER MESSAGE
-    # ---------------------------------------------------------
+    history = get_short_history(user_id)
 
     add_message(
         user_id,
@@ -1146,15 +849,182 @@ def ask_ai(
         question,
     )
 
-    # =========================================================
-    # CHAT
-    # =========================================================
+    # ---------------------------------------------------------------
+    # EXPLICIT SOURCE SELECTION
+    # ---------------------------------------------------------------
 
-    if knowledge_source == "chat":
+    # The router is now only an explicit-instruction helper.
+    # It does NOT classify ordinary business words.
+    explicit_source = None
+
+    if requested_source == "auto":
+        try:
+            explicit_source = (
+                knowledge_router.explicit_route(
+                    question
+                )
+            )
+        except Exception as exc:
+            print(
+                "Explicit source hint error:",
+                exc,
+            )
+
+    if requested_source == "auto" and explicit_source:
+        knowledge_source = explicit_source
+    elif requested_source == "auto":
+        knowledge_source = "auto"
+    else:
+        knowledge_source = requested_source
+
+    print(
+        "Initial source decision:",
+        knowledge_source,
+    )
+
+    # ===============================================================
+    # TRUE AUTO ROUTING
+    # ===============================================================
+
+    auto_database_result = None
+    auto_document_search = None
+
+    if knowledge_source == "auto":
+        print(
+            "AUTO routing: checking real database and "
+            "document evidence."
+        )
+
+        # -----------------------------------------------------------
+        # DATABASE CAPABILITY PROBE
+        # -----------------------------------------------------------
+        #
+        # This uses the existing deterministic Metric -> Intent ->
+        # Entity -> Reasoning -> QueryBuilder pipeline.
+        #
+        # IMPORTANT:
+        # allow_ollama_fallback=False prevents the expensive Ollama
+        # SQL fallback from being used for source detection.
+        # -----------------------------------------------------------
+
+        if database_id is not None:
+            try:
+                auto_database_result = answer_from_database(
+                    question=question,
+                    user_id=user_id,
+                    history=history,
+                    database_id=database_id,
+                    allow_ollama_fallback=False,
+                    save_memory=False,
+                )
+            except Exception as exc:
+                print(
+                    "AUTO database probe error:",
+                    exc,
+                )
+                auto_database_result = None
+        else:
+            print(
+                "AUTO database probe skipped: "
+                "no database selected."
+            )
+
+        database_evidence = bool(
+            isinstance(auto_database_result, dict)
+            and auto_database_result.get("success")
+            and isinstance(
+                auto_database_result.get("execution"),
+                dict,
+            )
+        )
+
+        # answer_from_database() returns the normalized result and
+        # keeps execution information out of the public response in
+        # most cases, so also accept a successful database result.
+        database_evidence = bool(
+            isinstance(auto_database_result, dict)
+            and auto_database_result.get("success")
+        )
 
         print(
-            "Routing question to "
-            "Ollama general chat."
+            "AUTO database evidence:",
+            database_evidence,
+        )
+
+        # -----------------------------------------------------------
+        # DOCUMENT EVIDENCE PROBE
+        # -----------------------------------------------------------
+
+        try:
+            auto_document_search = search_document_context(
+                question
+            )
+        except Exception as exc:
+            print(
+                "AUTO document search error:",
+                exc,
+            )
+            auto_document_search = {
+                "documents": [],
+                "context": "",
+                "score": 0,
+                "source": None,
+            }
+
+        if not isinstance(
+            auto_document_search,
+            dict,
+        ):
+            auto_document_search = {
+                "documents": [],
+                "context": "",
+                "score": 0,
+                "source": None,
+            }
+
+        document_evidence = bool(
+            auto_document_search.get("documents")
+            and auto_document_search.get("context")
+        )
+
+        print(
+            "AUTO document evidence:",
+            document_evidence,
+        )
+
+        # -----------------------------------------------------------
+        # EVIDENCE DECISION
+        # -----------------------------------------------------------
+
+        if database_evidence and document_evidence:
+            knowledge_source = "both"
+
+        elif database_evidence:
+            knowledge_source = "database"
+
+        elif document_evidence:
+            knowledge_source = "documents"
+
+        else:
+            knowledge_source = "chat"
+
+        print(
+            "AUTO final source:",
+            knowledge_source,
+        )
+
+    print(
+        "Final knowledge source:",
+        knowledge_source,
+    )
+
+    # ===============================================================
+    # CHAT
+    # ===============================================================
+
+    if knowledge_source == "chat":
+        print(
+            "Routing question to Ollama general chat."
         )
 
         answer = ask_general_ai(
@@ -1188,19 +1058,17 @@ def ask_ai(
             "database_id": database_id,
         }
 
-    # =========================================================
+    # ===============================================================
     # DOCUMENTS
-    # =========================================================
+    # ===============================================================
 
     if knowledge_source in {
         "document",
         "documents",
         "docs",
     }:
-
         print(
-            "Routing question to "
-            "document knowledge."
+            "Routing question to local document knowledge."
         )
 
         result = answer_from_documents(
@@ -1209,6 +1077,13 @@ def ask_ai(
             user_id=user_id,
             history=history,
             database_id=database_id,
+            search_result=(
+                auto_document_search
+                if requested_source == "auto"
+                and auto_document_search is not None
+                else None
+            ),
+            save_memory=True,
         )
 
         total_time = (
@@ -1223,35 +1098,69 @@ def ask_ai(
 
         return result
 
-    # =========================================================
+    # ===============================================================
     # DATABASE
-    # =========================================================
+    # ===============================================================
 
     if knowledge_source == "database":
-
         print(
-            "Routing question to "
-            "database."
+            "Routing question to database."
         )
 
-        # IMPORTANT:
-        #
-        # answer_from_database() accepts:
-        #
-        # question
-        # user_id
-        # history
-        # database_id
-        #
-        # It does NOT accept language.
-        #
+        # AUTO already performed the deterministic database query.
+        # Reuse it instead of querying the database twice.
+        if (
+            requested_source == "auto"
+            and isinstance(
+                auto_database_result,
+                dict,
+            )
+            and auto_database_result.get("success")
+        ):
+            result = dict(
+                auto_database_result
+            )
 
-        result = answer_from_database(
-            question=question,
-            user_id=user_id,
-            history=history,
-            database_id=database_id,
-        )
+            result["source"] = "database"
+            result["data_source"] = "selected_database"
+
+            answer = str(
+                result.get("answer") or ""
+            ).strip()
+
+            if not answer:
+                rows = result.get("rows", [])
+
+                if rows:
+                    answer = (
+                        "The database query completed successfully. "
+                        "The returned data is available in the result."
+                    )
+                else:
+                    answer = (
+                        "The database query completed successfully, "
+                        "but no matching records were returned."
+                    )
+
+            result["answer"] = answer
+
+            add_message(
+                user_id,
+                "assistant",
+                answer,
+            )
+
+        else:
+            # Explicit database mode keeps the normal Ollama SQL
+            # fallback available.
+            result = answer_from_database(
+                question=question,
+                user_id=user_id,
+                history=history,
+                database_id=database_id,
+                allow_ollama_fallback=True,
+                save_memory=True,
+            )
 
         total_time = (
             time.perf_counter()
@@ -1265,95 +1174,155 @@ def ask_ai(
 
         return result
 
-    # =========================================================
+    # ===============================================================
     # BOTH DATABASE + DOCUMENTS
-    # =========================================================
+    # ===============================================================
 
     if knowledge_source in {
         "both",
         "database_and_documents",
         "database_documents",
     }:
-
         print(
-            "Routing question to "
-            "database + documents."
+            "Routing question to database + documents."
         )
 
-        # -----------------------------------------------------
+        # -----------------------------------------------------------
         # DATABASE
-        # -----------------------------------------------------
+        # -----------------------------------------------------------
 
-        database_result = answer_from_database(
-            question=question,
-            user_id=user_id,
-            history=history,
-            database_id=database_id,
-        )
-
-        database_records = (
-            database_result.get(
-                "rows",
-                []
+        if (
+            requested_source == "auto"
+            and isinstance(
+                auto_database_result,
+                dict,
             )
+            and auto_database_result.get("success")
+        ):
+            database_result = auto_database_result
+        else:
+            database_result = answer_from_database(
+                question=question,
+                user_id=user_id,
+                history=history,
+                database_id=database_id,
+                allow_ollama_fallback=True,
+                save_memory=False,
+            )
+
+        database_records = database_result.get(
+            "rows",
+            [],
         )
+
+        if not isinstance(
+            database_records,
+            list,
+        ):
+            database_records = []
 
         sql = database_result.get(
             "sql"
         )
 
-        # -----------------------------------------------------
-        # DOCUMENT SEARCH
-        # -----------------------------------------------------
+        # -----------------------------------------------------------
+        # DOCUMENTS
+        # -----------------------------------------------------------
 
-        try:
-
-            document_search = (
-                search_document_context(
+        if (
+            requested_source == "auto"
+            and isinstance(
+                auto_document_search,
+                dict,
+            )
+        ):
+            document_search = auto_document_search
+        else:
+            try:
+                document_search = search_document_context(
                     question
                 )
-            )
+            except Exception as exc:
+                print(
+                    "Document search error:",
+                    exc,
+                )
 
-        except Exception as exc:
+                document_search = {
+                    "documents": [],
+                    "context": "",
+                    "score": 0,
+                    "source": None,
+                }
 
-            print(
-                "Document search error:",
-                exc,
-            )
-
-            document_search = {
-                "documents": [],
-                "context": "",
-                "score": 0,
-                "source": None,
-            }
-
-        documents = (
-            document_search.get(
-                "documents",
-                []
-            )
+        documents = document_search.get(
+            "documents",
+            [],
         )
 
-        document_context = (
-            document_search.get(
-                "context",
-                ""
-            )
+        document_context = document_search.get(
+            "context",
+            "",
         )
 
-        # -----------------------------------------------------
+        # -----------------------------------------------------------
         # COMBINED AI
-        # -----------------------------------------------------
+        # -----------------------------------------------------------
 
-        answer = ask_combined_ai(
-            question=question,
-            database_records=database_records,
-            document_context=document_context,
-            sql=sql,
-            language=language,
-            history=history,
+        # If one side unexpectedly has no evidence, do not force a
+        # combined hallucination. Use the evidence that actually exists.
+        database_ok = bool(
+            isinstance(database_result, dict)
+            and database_result.get("success")
         )
+
+        document_ok = bool(
+            documents
+            and document_context
+        )
+
+        if database_ok and document_ok:
+            answer = ask_combined_ai(
+                question=question,
+                database_records=database_records,
+                document_context=document_context,
+                sql=sql,
+                language=language,
+                history=history,
+            )
+
+            source = "both"
+            data_source = "database_and_documents"
+
+        elif database_ok:
+            answer = database_result.get(
+                "answer",
+                "",
+            )
+
+            source = "database"
+            data_source = "selected_database"
+
+        elif document_ok:
+            answer = ask_document_ai(
+                question=question,
+                context=document_context,
+                language=language,
+                history=history,
+            )
+
+            source = "documents"
+            data_source = "local_documents"
+
+        else:
+            answer = ask_general_ai(
+                question,
+                history=history,
+                language=language,
+            )
+
+            source = "chat"
+            data_source = "ollama"
 
         add_message(
             user_id,
@@ -1374,24 +1343,27 @@ def ask_ai(
         return {
             "success": True,
             "answer": answer,
-            "source": "both",
-            "data_source": "database_and_documents",
-            "sql": sql,
+            "source": source,
+            "data_source": data_source,
+            "sql": sql if source in {
+                "database",
+                "both",
+            } else None,
             "database_id": database_id,
             "records": database_records,
             "document_count": len(documents),
             "document_score": document_search.get(
                 "score",
-                0
+                0,
             ),
             "document_source": document_search.get(
                 "source"
             ),
         }
 
-    # =========================================================
-    # UNKNOWN SOURCE
-    # =========================================================
+    # ===============================================================
+    # UNKNOWN / SAFE FALLBACK
+    # ===============================================================
 
     print(
         "Unknown knowledge source. "
