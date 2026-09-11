@@ -126,6 +126,9 @@ class OllamaClient:
         json_mode: bool = False,
         num_predict: int | None = None,
         think: bool | None = None,
+        model: str | None = None,
+        num_ctx: int | None = None,
+        timeout: int | None = None,
     ) -> str:
 
         max_tokens = (
@@ -140,8 +143,12 @@ class OllamaClient:
             else think
         )
 
+        selected_model = model or self.model
+        selected_ctx = num_ctx or self.num_ctx
+        selected_timeout = timeout or self.timeout
+
         payload: dict[str, Any] = {
-            "model": self.model,
+            "model": selected_model,
             "messages": messages,
             "stream": False,
 
@@ -155,7 +162,7 @@ class OllamaClient:
             "options": {
                 "temperature": temperature,
                 "num_predict": max_tokens,
-                "num_ctx": self.num_ctx,
+                "num_ctx": selected_ctx,
             },
         }
 
@@ -171,7 +178,7 @@ class OllamaClient:
         print("========================================")
         print("OLLAMA REQUEST")
         print("========================================")
-        print("Model          :", self.model)
+        print("Model          :", selected_model)
         print("Messages       :", len(messages))
         print("Prompt chars   :", message_chars)
         print("Thinking       :", thinking_enabled)
@@ -186,7 +193,7 @@ class OllamaClient:
                 f"{self.base_url}/api/chat",
                 json=payload,
                 headers=self.headers,
-                timeout=self.timeout,
+                timeout=selected_timeout,
             )
 
             elapsed = time.perf_counter() - start_time
@@ -300,6 +307,9 @@ class OllamaClient:
         temperature: float = 0.2,
         num_predict: int | None = None,
         think: bool | None = None,
+        model: str | None = None,
+        num_ctx: int | None = None,
+        timeout: int | None = None,
     ) -> str:
 
         return self.chat(
@@ -316,6 +326,9 @@ class OllamaClient:
             temperature=temperature,
             num_predict=num_predict,
             think=think,
+            model=model,
+            num_ctx=num_ctx,
+            timeout=timeout,
         )
 
     # ---------------------------------------------------------
@@ -327,6 +340,10 @@ class OllamaClient:
         system_prompt: str,
         user_prompt: str,
         think: bool | None = None,
+        model: str | None = None,
+        num_ctx: int | None = None,
+        timeout: int | None = None,
+        num_predict: int = 128,
     ) -> dict:
 
         text = self.chat(
@@ -342,8 +359,11 @@ class OllamaClient:
             ],
             temperature=0,
             json_mode=True,
-            num_predict=256,
+            num_predict=num_predict,
             think=think,
+            model=model,
+            num_ctx=num_ctx,
+            timeout=timeout,
         )
 
         # -----------------------------------------------------

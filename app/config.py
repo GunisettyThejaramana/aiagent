@@ -35,7 +35,12 @@ class Settings(BaseSettings):
         "qwen3:8b"
     )
 
-    OLLAMA_TIMEOUT: int = 120
+    OLLAMA_TIMEOUT: int = 60
+
+    # Fast SQL model. Keep the larger model for normal chat.
+    OLLAMA_SQL_MODEL: str = "qwen3:4b"
+    OLLAMA_SQL_TIMEOUT: int = 25
+    OLLAMA_SQL_CONTEXT: int = 2048
 
     # ============================================================
     # DATABASE ENCRYPTION

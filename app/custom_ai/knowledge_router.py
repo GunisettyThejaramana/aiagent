@@ -154,7 +154,7 @@ class KnowledgeRouter:
         return "chat"
 
     # ============================================================
-    # OLLAMA ROUTING
+    # FAST LOCAL ROUTING
     # ============================================================
 
     def route(
@@ -163,166 +163,58 @@ class KnowledgeRouter:
         database_available: bool = True,
         documents_available: bool = True,
     ) -> str:
-
-        question = self.normalize(
-            question
-        )
-
-        if not question:
+        """Route locally first. No LLM call is used for routing."""
+        q = self.normalize(question)
+        if not q:
             return "chat"
 
-        if not ollama_client.is_available():
-
-            print(
-                "Ollama unavailable. "
-                "Using deterministic router."
-            )
-
-            return self.fallback_route(
-                question
-            )
-
-        system_prompt = """
-You are the routing brain of an enterprise AI assistant.
-
-Classify the user's question into exactly ONE route:
-
-chat
-database
-documents
-both
-
-ROUTE DEFINITIONS:
-
-chat:
-- Greetings
-- Casual conversation
-- General knowledge
-- Programming questions
-- Technical explanations
-- Writing help
-- Mathematics
-- Learning questions
-- Questions that do not require company data
-
-database:
-- Questions requiring structured business data
-- Sales records
-- Customers
-- Employees
-- Products
-- Payments
-- Inventory
-- Transactions
-- Counts
-- Totals
-- Averages
-- Rankings
-- Dates in business records
-- Any question asking for values that should come
-  from database tables
-
-documents:
-- Questions explicitly asking about uploaded files
-- PDFs
-- Reports
-- Manuals
-- Policies
-- Contracts
-- Presentations
-- Document content
-- "According to the report..."
-- "What does the document say?"
-- "What is mentioned in the PDF?"
-
-both:
-- The user explicitly requires information from both
-  database and documents.
-- Comparisons between database information and documents.
-
-IMPORTANT:
-
-A simple greeting such as:
-"hello"
-"hi"
-"good morning"
-must ALWAYS be classified as chat.
-
-A general question such as:
-"What is Python?"
-must be chat.
-
-Return ONLY JSON:
-
-{
-  "route": "chat"
-}
-
-or
-
-{
-  "route": "database"
-}
-
-or
-
-{
-  "route": "documents"
-}
-
-or
-
-{
-  "route": "both"
-}
-"""
-
-        user_prompt = f"""
-DATABASE AVAILABLE:
-{database_available}
-
-DOCUMENTS AVAILABLE:
-{documents_available}
-
-USER QUESTION:
-{question}
-
-Choose exactly one route.
-"""
-
-        try:
-
-            result = ollama_client.generate_json(
-                system_prompt,
-                user_prompt,
-            )
-
-            route = str(
-                result.get(
-                    "route",
-                    "",
-                )
-            ).strip().lower()
-
-            if route in {
-                "chat",
-                "database",
-                "documents",
-                "both",
-            }:
-
-                return route
-
-        except Exception as exc:
-
-            print(
-                "Ollama routing error:",
-                exc,
-            )
-
-        return self.fallback_route(
-            question
+        # Explicit combined requests must be checked first.
+        both_terms = (
+            "database and document", "database and documents",
+            "database and pdf", "database and report",
+            "both database", "compare database",
+            "compare the database with", "compare database with",
         )
+        if any(x in q for x in both_terms):
+            return "both"
+
+        document_terms = (
+            "document", "documents", "pdf", "file", "files",
+            "report", "reports", "manual", "policy", "policies",
+            "contract", "agreement", "presentation",
+            "according to the report", "according to the document",
+            "according to the pdf", "what does the report say",
+            "what does the document say", "what does the pdf say",
+            "what is mentioned in the report",
+            "what is mentioned in the document",
+            "uploaded file", "uploaded document",
+        )
+        database_terms = (
+            "database", "table", "tables", "record", "records",
+            "row", "rows", "weaver", "weavers", "loom", "looms",
+            "saree", "sarees", "warp", "warps", "weft", "wefts",
+            "stock", "stocks", "payment", "payments", "balance",
+            "transaction", "transactions", "quantity", "price",
+            "sales", "sale", "revenue", "profit", "customer",
+            "customers", "employee", "employees", "salary",
+            "invoice", "invoices", "order", "orders", "inventory",
+            "production", "production data", "business data",
+            "last month", "this month", "today", "yesterday",
+            "last year", "this year", "how many", "total",
+            "count", "average", "sum",
+        )
+
+        has_doc = any(x in q for x in document_terms)
+        has_db = any(x in q for x in database_terms)
+
+        if has_doc and has_db:
+            return "both"
+        if has_doc:
+            return "documents"
+        if has_db:
+            return "database"
+
+        return "chat"
 
 
 # ============================================================

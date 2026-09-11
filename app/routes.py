@@ -57,19 +57,19 @@ custom_ai_engine = CustomAIEngine()
 # ================================================================
 
 # Keep only a small amount of conversation history.
-MAX_HISTORY_MESSAGES = 4
+MAX_HISTORY_MESSAGES = 2
 
 
 # Document retrieval settings.
-MAX_DOCUMENTS_FOR_AI = 6
+MAX_DOCUMENTS_FOR_AI = 4
 
 
 # Maximum characters taken from each document.
-MAX_DOCUMENT_CHARS = 3000
+MAX_DOCUMENT_CHARS = 2200
 
 
 # Maximum total document context.
-MAX_DOCUMENT_CONTEXT_CHARS = 16000
+MAX_DOCUMENT_CONTEXT_CHARS = 10000
 
 
 # ================================================================
